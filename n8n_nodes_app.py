@@ -356,9 +356,13 @@ def main():
     search_col1, search_col2 = st.columns([3, 1])
 
     with search_col1:
+        # Initialize search term in session state if not present
+        if 'search_term' not in st.session_state:
+            st.session_state['search_term'] = ''
+
         search_term = st.text_input(
             "🔎 Intelligent Search",
-            value=st.session_state.get('search_term', ''),
+            value=st.session_state['search_term'],
             placeholder="e.g. 'email', 'database', 'ai', 'payment'...",
             help="""
             **Intelligent Search with Synonyms:**
@@ -370,8 +374,8 @@ def main():
             """,
             key='search_input'
         )
-        if search_term:
-            st.session_state['search_term'] = search_term
+        # Update session state when text input changes
+        st.session_state['search_term'] = search_term
 
     with search_col2:
         st.markdown("<br>", unsafe_allow_html=True)

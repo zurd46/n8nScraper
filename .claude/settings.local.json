@@ -11,7 +11,11 @@
       "Bash(pip install:*)",
       "Bash(streamlit run:*)",
       "Bash(git pull:*)",
-      "Bash(timeout 5 sleep:*)"
+      "Bash(timeout 5 sleep:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd database to data folder and update .gitignore\n\n- Move n8n_docs.db to data/ folder for better organization\n- Update .gitignore to allow data/n8n_docs.db but exclude root copy\n- Database now properly accessible for Streamlit Cloud deployment\n- Fixed quicksearch functionality with session state management\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git commit -m \"$(cat <<''EOF''\nUpdate database with node documentation and fix .gitignore\n\n- Updated n8n_docs.db with node operations, parameters, and credentials from Jina AI scraper\n- Fixed .gitignore to allow data/n8n_docs.db while excluding root copy\n- Database now contains enriched node information for AI workflow generation\n- Fixed quicksearch session state management in Streamlit app\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push)"
     ],
     "deny": [],
     "ask": []
