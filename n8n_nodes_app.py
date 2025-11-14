@@ -8,7 +8,13 @@ Search and explore all n8n node types
 import streamlit as st
 import sqlite3
 import pandas as pd
+import json
+import os
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Page Configuration
 st.set_page_config(
@@ -194,6 +200,149 @@ def calculate_relevance_score(row, search_terms):
 
     return score
 
+def load_node_context_for_ai(limit=100):
+    """
+    Load node information for AI context
+    Returns nodes with their operations, parameters, and credentials
+    """
+    conn = get_database_connection()
+    cursor = conn.cursor()
+
+    # Get nodes with their details
+    cursor.execute('''
+        SELECT DISTINCT
+            n.node_type,
+            n.display_name,
+            n.description,
+            n.category
+        FROM node_types_api n
+        WHERE n.category IN ('App', 'Trigger', 'Core')
+        ORDER BY n.display_name
+        LIMIT ?
+    ''', (limit,))
+
+    nodes_data = []
+    for node_type, display_name, description, category in cursor.fetchall():
+        node_info = {
+            'node_type': node_type,
+            'display_name': display_name,
+            'description': description,
+            'category': category
+        }
+        nodes_data.append(node_info)
+
+    return nodes_data
+
+def generate_workflow_with_openai(prompt, api_key, nodes_context):
+    """
+    Generate n8n workflow using OpenAI API
+    """
+    try:
+        import openai
+
+        # Set API key
+        openai.api_key = api_key
+
+        # Build system message with node context
+        system_message = f"""You are an expert n8n workflow automation engineer.
+You help users create n8n workflows in JSON format.
+
+Available n8n nodes (selection):
+{json.dumps(nodes_context[:20], indent=2)}
+
+IMPORTANT RULES:
+1. Return ONLY valid n8n workflow JSON
+2. Use exact node types from the list above
+3. Include proper node connections
+4. Set realistic parameters
+5. Use expressions like {{{{ $json.fieldname }}}} for dynamic values
+6. Follow n8n workflow schema exactly
+
+Example workflow structure:
+{{
+  "name": "Workflow Name",
+  "nodes": [
+    {{
+      "parameters": {{}},
+      "name": "Node Name",
+      "type": "n8n-nodes-base.nodetype",
+      "typeVersion": 1,
+      "position": [250, 300]
+    }}
+  ],
+  "connections": {{
+    "Node Name": {{
+      "main": [[{{"node": "Next Node", "type": "main", "index": 0}}]]
+    }}
+  }}
+}}
+
+Return ONLY the JSON, no explanations."""
+
+        # Call OpenAI API
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": f"Create an n8n workflow for: {prompt}"}
+            ],
+            temperature=0.7,
+            max_tokens=2000
+        )
+
+        # Extract workflow JSON
+        workflow_json = response.choices[0].message.content.strip()
+
+        # Remove markdown code blocks if present
+        if workflow_json.startswith('```'):
+            workflow_json = workflow_json.split('```')[1]
+            if workflow_json.startswith('json'):
+                workflow_json = workflow_json[4:]
+            workflow_json = workflow_json.strip()
+
+        # Parse to validate
+        workflow = json.loads(workflow_json)
+
+        return workflow, None
+
+    except ImportError:
+        return None, "OpenAI package not installed. Run: pip install openai"
+    except json.JSONDecodeError as e:
+        return None, f"Invalid JSON generated: {e}"
+    except Exception as e:
+        return None, f"Error: {str(e)}"
+
+def validate_workflow(workflow):
+    """
+    Validate n8n workflow structure
+    """
+    errors = []
+    warnings = []
+
+    # Check required fields
+    if 'nodes' not in workflow:
+        errors.append("Missing 'nodes' field")
+    if 'connections' not in workflow:
+        warnings.append("Missing 'connections' field - nodes won't be connected")
+
+    # Validate nodes
+    if 'nodes' in workflow:
+        for i, node in enumerate(workflow['nodes']):
+            if 'type' not in node:
+                errors.append(f"Node {i}: Missing 'type' field")
+            if 'name' not in node:
+                errors.append(f"Node {i}: Missing 'name' field")
+            if 'position' not in node:
+                warnings.append(f"Node {i}: Missing 'position' field")
+
+    return errors, warnings
+
+def export_workflow(workflow):
+    """
+    Export workflow as JSON string
+    """
+    return json.dumps(workflow, indent=2, ensure_ascii=False)
+
 def expand_search_terms(search_term):
     """Expand search term with synonyms and related terms"""
     # Common synonyms and related terms for n8n nodes
@@ -311,195 +460,361 @@ def get_category_color(category):
 
 def main():
     # Header
-    st.title("🔍 n8n Nodes Explorer")
-    st.markdown("Search all available n8n node types (Official, Community & Custom)")
+    st.title("🔍 n8n Nodes Explorer & AI Workflow Generator")
+
+    # Main tabs
+    tab1, tab2 = st.tabs(["🔍 Node Explorer", "🤖 AI Workflow Generator"])
 
     # Load data
     with st.spinner('Loading node data...'):
         df = load_all_nodes()
 
-    # Sidebar - Filters
-    st.sidebar.header("🎯 Filters & Options")
+    # ===== TAB 1: NODE EXPLORER =====
+    with tab1:
+        st.markdown("Search all available n8n node types (Official, Community & Custom)")
 
-    # Category filter
-    categories = ['All'] + sorted(df['category'].unique().tolist())
-    selected_categories = st.sidebar.multiselect(
-        "Categories",
-        options=categories,
-        default=['All']
-    )
+        # Sidebar - Filters
+        st.sidebar.header("🎯 Filters & Options")
 
-    # Sort options
-    sort_options = ['Relevance', 'Name (A-Z)', 'Name (Z-A)', 'Node Type (A-Z)', 'Category']
-    sort_by = st.sidebar.selectbox("Sort by", sort_options)
-
-    # View mode
-    view_mode = st.sidebar.radio(
-        "View",
-        options=['Cards', 'Table', 'Compact List'],
-        index=1  # Default to Table view
-    )
-
-    # Statistics in sidebar
-    st.sidebar.markdown("---")
-    st.sidebar.header("📊 Statistics")
-    stats = get_category_stats(df)
-
-    total_nodes = len(df)
-    st.sidebar.metric("Total Nodes", f"{total_nodes:,}")
-
-    for category, count in sorted(stats.items()):
-        st.sidebar.metric(category, f"{count:,}")
-
-    # Main content - Search
-    st.markdown("---")
-    search_col1, search_col2 = st.columns([3, 1])
-
-    with search_col1:
-        # Initialize search term in session state if not present
-        if 'search_term' not in st.session_state:
-            st.session_state['search_term'] = ''
-
-        search_term = st.text_input(
-            "🔎 Intelligent Search",
-            value=st.session_state['search_term'],
-            placeholder="e.g. 'email', 'database', 'ai', 'payment'...",
-            help="""
-            **Intelligent Search with Synonyms:**
-            - 'email' → finds Gmail, Outlook, SMTP, etc.
-            - 'database' → finds Postgres, MySQL, MongoDB, etc.
-            - 'ai' → finds OpenAI, Anthropic, LangChain, etc.
-            - 'chat' → finds Slack, Teams, Discord, etc.
-            - 'cloud' → finds AWS, Azure, Google Cloud, etc.
-            """,
-            key='search_input'
+        # Category filter
+        categories = ['All'] + sorted(df['category'].unique().tolist())
+        selected_categories = st.sidebar.multiselect(
+            "Categories",
+            options=categories,
+            default=['All']
         )
-        # Update session state when text input changes
-        st.session_state['search_term'] = search_term
 
-    with search_col2:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔄 Reset", use_container_width=True):
-            st.session_state['search_term'] = ''
-            st.rerun()
+        # Sort options
+        sort_options = ['Relevance', 'Name (A-Z)', 'Name (Z-A)', 'Node Type (A-Z)', 'Category']
+        sort_by = st.sidebar.selectbox("Sort by", sort_options)
 
-    # Quick search buttons
-    st.markdown("**Quick Search:**")
-    quick_col1, quick_col2, quick_col3, quick_col4, quick_col5, quick_col6 = st.columns(6)
+        # View mode
+        view_mode = st.sidebar.radio(
+            "View",
+            options=['Cards', 'Table', 'Compact List'],
+            index=1  # Default to Table view
+        )
 
-    quick_searches = {
-        '📧 Email': 'email',
-        '💬 Chat': 'chat',
-        '🤖 AI': 'ai',
-        '💾 Database': 'database',
-        '☁️ Cloud': 'cloud',
-        '💳 Payment': 'payment'
-    }
+        # Statistics in sidebar
+        st.sidebar.markdown("---")
+        st.sidebar.header("📊 Statistics")
+        stats = get_category_stats(df)
 
-    cols = [quick_col1, quick_col2, quick_col3, quick_col4, quick_col5, quick_col6]
-    for col, (label, term) in zip(cols, quick_searches.items()):
-        with col:
-            if st.button(label, use_container_width=True):
-                st.session_state['search_term'] = term
+        total_nodes = len(df)
+        st.sidebar.metric(label="Total Nodes", value=f"{total_nodes:,}")
+
+        for category, count in sorted(stats.items()):
+            st.sidebar.metric(label=category, value=f"{count:,}")
+
+        # Main content - Search
+        st.markdown("---")
+        search_col1, search_col2 = st.columns([3, 1])
+
+        with search_col1:
+            # Initialize search term in session state if not present
+            if 'search_term' not in st.session_state:
+                st.session_state['search_term'] = ''
+
+            search_term = st.text_input(
+                "🔎 Intelligent Search",
+                value=st.session_state['search_term'],
+                placeholder="e.g. 'email', 'database', 'ai', 'payment'...",
+                help="""
+                **Intelligent Search with Synonyms:**
+                - 'email' → finds Gmail, Outlook, SMTP, etc.
+                - 'database' → finds Postgres, MySQL, MongoDB, etc.
+                - 'ai' → finds OpenAI, Anthropic, LangChain, etc.
+                - 'chat' → finds Slack, Teams, Discord, etc.
+                - 'cloud' → finds AWS, Azure, Google Cloud, etc.
+                """,
+                key='search_input'
+            )
+            # Update session state when text input changes
+            st.session_state['search_term'] = search_term
+
+        with search_col2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("🔄 Reset", use_container_width=True):
+                st.session_state['search_term'] = ''
                 st.rerun()
 
-    # Filter and search
-    filtered_df = search_nodes(df, search_term, selected_categories, sort_by)
+        # Quick search buttons
+        st.markdown("**Quick Search:**")
+        quick_col1, quick_col2, quick_col3, quick_col4, quick_col5, quick_col6 = st.columns(6)
 
-    # Show expanded search terms if searching
-    if search_term:
-        expanded_terms = expand_search_terms(search_term)
-        if len(expanded_terms) > 1:
-            with st.expander(f"🧠 Intelligent Search: '{search_term}' → {len(expanded_terms)} terms", expanded=False):
-                st.info(f"Search expanded to: **{', '.join(expanded_terms[:10])}**" +
-                       (f" +{len(expanded_terms)-10} more" if len(expanded_terms) > 10 else ""))
+        quick_searches = {
+            '📧 Email': 'email',
+            '💬 Chat': 'chat',
+            '🤖 AI': 'ai',
+            '💾 Database': 'database',
+            '☁️ Cloud': 'cloud',
+            '💳 Payment': 'payment'
+        }
 
-    # Results count
-    st.markdown(f"**{len(filtered_df):,}** nodes found")
+        cols = [quick_col1, quick_col2, quick_col3, quick_col4, quick_col5, quick_col6]
+        for col, (label, term) in zip(cols, quick_searches.items()):
+            with col:
+                if st.button(label, use_container_width=True):
+                    st.session_state['search_term'] = term
+                    st.rerun()
 
-    # Display results based on view mode
-    st.markdown("---")
+        # Filter and search
+        filtered_df = search_nodes(df, search_term, selected_categories, sort_by)
 
-    if len(filtered_df) == 0:
-        st.info("No nodes found. Try a different search.")
+        # Show expanded search terms if searching
+        if search_term:
+            expanded_terms = expand_search_terms(search_term)
+            if len(expanded_terms) > 1:
+                with st.expander(f"🧠 Intelligent Search: '{search_term}' → {len(expanded_terms)} terms", expanded=False):
+                    st.info(f"Search expanded to: **{', '.join(expanded_terms[:10])}**" +
+                           (f" +{len(expanded_terms)-10} more" if len(expanded_terms) > 10 else ""))
 
-    elif view_mode == 'Cards':
-        # Card view
-        for idx, row in filtered_df.iterrows():
-            with st.container():
-                col1, col2 = st.columns([3, 1])
+        # Results count
+        st.markdown(f"**{len(filtered_df):,}** nodes found")
 
-                with col1:
-                    # Category badge
-                    category_class = get_category_color(row['category'])
-                    st.markdown(
-                        f'<span class="node-category {category_class}">{row["category"]}</span>',
-                        unsafe_allow_html=True
-                    )
+        # Display results based on view mode
+        st.markdown("---")
 
-                    # Display name
-                    st.markdown(f"### {row['display_name']}")
+        if len(filtered_df) == 0:
+            st.info("No nodes found. Try a different search.")
 
-                    # Node type (technical name)
-                    st.markdown(f'<code class="node-type">{row["node_type"]}</code>', unsafe_allow_html=True)
+        elif view_mode == 'Cards':
+            # Card view
+            for idx, row in filtered_df.iterrows():
+                with st.container():
+                    col1, col2 = st.columns([3, 1])
 
-                    # Description
-                    if pd.notna(row['description']) and row['description']:
-                        st.markdown(f"*{row['description'][:200]}{'...' if len(str(row['description'])) > 200 else ''}*")
+                    with col1:
+                        # Category badge
+                        category_class = get_category_color(row['category'])
+                        st.markdown(
+                            f'<span class="node-category {category_class}">{row["category"]}</span>',
+                            unsafe_allow_html=True
+                        )
 
-                with col2:
-                    if pd.notna(row['version']):
-                        st.markdown(f"**Version:** {row['version']}")
-                    st.markdown(f"**Source:** {row['source']}")
+                        # Display name
+                        st.markdown(f"### {row['display_name']}")
 
-                st.markdown("---")
+                        # Node type (technical name)
+                        st.markdown(f'<code class="node-type">{row["node_type"]}</code>', unsafe_allow_html=True)
 
-    elif view_mode == 'Table':
-        # Table view
-        display_df = filtered_df[['display_name', 'node_type', 'category', 'version', 'description']].copy()
-        display_df.columns = ['Name', 'Node Type', 'Category', 'Version', 'Description']
+                        # Description
+                        if pd.notna(row['description']) and row['description']:
+                            st.markdown(f"*{row['description'][:200]}{'...' if len(str(row['description'])) > 200 else ''}*")
 
-        # Truncate description
-        display_df['Description'] = display_df['Description'].apply(
-            lambda x: str(x)[:100] + '...' if pd.notna(x) and len(str(x)) > 100 else x
-        )
+                    with col2:
+                        if pd.notna(row['version']):
+                            st.markdown(f"**Version:** {row['version']}")
+                        st.markdown(f"**Source:** {row['source']}")
 
-        st.dataframe(
-            display_df,
-            use_container_width=True,
-            hide_index=True,
-            height=600
-        )
+                    st.markdown("---")
 
-    elif view_mode == 'Compact List':
-        # Compact list view
-        for idx, row in filtered_df.iterrows():
-            category_class = get_category_color(row['category'])
+        elif view_mode == 'Table':
+            # Table view
+            display_df = filtered_df[['display_name', 'node_type', 'category', 'version', 'description']].copy()
+            display_df.columns = ['Name', 'Node Type', 'Category', 'Version', 'Description']
 
-            st.markdown(
-                f'''
-                <div style="padding: 0.5rem 0; border-bottom: 1px solid #eee;">
-                    <span class="node-category {category_class}">{row["category"]}</span>
-                    <strong>{row["display_name"]}</strong>
-                    <br>
-                    <code style="font-size: 0.8rem; color: #666;">{row["node_type"]}</code>
-                </div>
-                ''',
-                unsafe_allow_html=True
+            # Truncate description
+            display_df['Description'] = display_df['Description'].apply(
+                lambda x: str(x)[:100] + '...' if pd.notna(x) and len(str(x)) > 100 else x
             )
 
-    # Footer
-    st.markdown("---")
-    st.markdown(
-        f"""
-        <div style="text-align: center; color: #666; font-size: 0.9rem;">
-            💾 Database: n8n_docs.db |
-            📊 {total_nodes:,} Total Nodes |
-            🔄 Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+            st.dataframe(
+                display_df,
+                use_container_width=True,
+                hide_index=True,
+                height=600
+            )
+
+        elif view_mode == 'Compact List':
+            # Compact list view
+            for idx, row in filtered_df.iterrows():
+                category_class = get_category_color(row['category'])
+
+                st.markdown(
+                    f'''
+                    <div style="padding: 0.5rem 0; border-bottom: 1px solid #eee;">
+                        <span class="node-category {category_class}">{row["category"]}</span>
+                        <strong>{row["display_name"]}</strong>
+                        <br>
+                        <code style="font-size: 0.8rem; color: #666;">{row["node_type"]}</code>
+                    </div>
+                    ''',
+                    unsafe_allow_html=True
+                )
+
+        # Footer
+        st.markdown("---")
+        st.markdown(
+            f"""
+            <div style="text-align: center; color: #666; font-size: 0.9rem;">
+                💾 Database: n8n_docs.db |
+                📊 {total_nodes:,} Total Nodes |
+                🔄 Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # ===== TAB 2: AI WORKFLOW GENERATOR =====
+    with tab2:
+        st.markdown("Generate n8n workflows from natural language using AI")
+
+        # Check for API key
+        api_key = os.getenv('OPENAI_API_KEY', '')
+
+        if not api_key:
+            st.error("⚠️ OpenAI API Key not found in environment variables")
+            st.info("Please add OPENAI_API_KEY to your .env file")
+            st.code("OPENAI_API_KEY=sk-your-key-here", language="bash")
+            return
+
+        st.success("✅ OpenAI API Key loaded from .env")
+
+        # Load node context for AI
+        with st.spinner('Loading node database for AI...'):
+            nodes_context = load_node_context_for_ai(limit=100)
+
+        st.info(f"📚 Loaded {len(nodes_context)} nodes for AI context")
+
+        # Example prompts
+        st.markdown("### 💡 Example Prompts")
+        examples_col1, examples_col2, examples_col3 = st.columns(3)
+
+        with examples_col1:
+            if st.button("📧 Email on Webhook", use_container_width=True, key='ex1'):
+                st.session_state['ai_prompt'] = "Create a workflow that receives a webhook and sends an email with the data"
+
+        with examples_col2:
+            if st.button("🗄️ Database to Spreadsheet", use_container_width=True, key='ex2'):
+                st.session_state['ai_prompt'] = "Get data from PostgreSQL and save it to Google Sheets"
+
+        with examples_col3:
+            if st.button("🤖 AI Content Generator", use_container_width=True, key='ex3'):
+                st.session_state['ai_prompt'] = "Receive a topic via webhook, use OpenAI to generate content, and post to Slack"
+
+        # Prompt input
+        st.markdown("### ✍️ Describe Your Workflow")
+        ai_prompt = st.text_area(
+            "What should the workflow do?",
+            value=st.session_state.get('ai_prompt', ''),
+            placeholder="Example: Create a workflow that monitors Gmail for new emails, extracts attachments, and uploads them to Google Drive",
+            height=100,
+            key='ai_prompt_input'
+        )
+
+        if 'ai_prompt_input' in st.session_state and st.session_state['ai_prompt_input']:
+            st.session_state['ai_prompt'] = st.session_state['ai_prompt_input']
+
+        # Generate button
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            generate_button = st.button("🚀 Generate Workflow with AI", type="primary", use_container_width=True)
+
+        with col2:
+            if st.button("🗑️ Clear", use_container_width=True, key='clear_ai'):
+                st.session_state['ai_prompt'] = ''
+                st.session_state['ai_workflow'] = None
+                st.rerun()
+
+        # Generate workflow
+        if generate_button:
+            if not ai_prompt:
+                st.error("⚠️ Please describe what the workflow should do")
+            else:
+                with st.spinner('🤖 Generating workflow with AI...'):
+                    workflow, error = generate_workflow_with_openai(ai_prompt, api_key, nodes_context)
+
+                    if error:
+                        st.error(f"❌ {error}")
+                    else:
+                        st.session_state['ai_workflow'] = workflow
+                        st.success("✅ Workflow generated successfully!")
+
+        # Display workflow
+        if 'ai_workflow' in st.session_state and st.session_state['ai_workflow']:
+            workflow = st.session_state['ai_workflow']
+
+            st.markdown("---")
+            st.markdown("### 📋 Generated Workflow")
+
+            # Validate
+            errors, warnings = validate_workflow(workflow)
+
+            if errors:
+                st.error("❌ Validation Errors:")
+                for error in errors:
+                    st.write(f"- {error}")
+
+            if warnings:
+                st.warning("⚠️ Warnings:")
+                for warning in warnings:
+                    st.write(f"- {warning}")
+
+            # Workflow info
+            info_col1, info_col2, info_col3 = st.columns(3)
+
+            with info_col1:
+                st.metric("Nodes", len(workflow.get('nodes', [])))
+
+            with info_col2:
+                st.metric("Connections", len(workflow.get('connections', {})))
+
+            with info_col3:
+                workflow_name = workflow.get('name', 'Unnamed Workflow')
+                st.metric("Workflow Name", workflow_name)
+
+            # Tabs for different views
+            workflow_tab1, workflow_tab2, workflow_tab3 = st.tabs(["📊 Visual Overview", "📝 JSON", "⬇️ Export"])
+
+            with workflow_tab1:
+                st.markdown("#### Nodes in Workflow")
+                for i, node in enumerate(workflow.get('nodes', []), 1):
+                    with st.expander(f"{i}. {node.get('name', 'Unnamed')} ({node.get('type', 'unknown')})"):
+                        st.json(node)
+
+                st.markdown("#### Connections")
+                if workflow.get('connections'):
+                    st.json(workflow['connections'])
+                else:
+                    st.info("No connections defined")
+
+            with workflow_tab2:
+                st.markdown("#### Complete Workflow JSON")
+                workflow_json = json.dumps(workflow, indent=2, ensure_ascii=False)
+                st.code(workflow_json, language='json')
+
+            with workflow_tab3:
+                st.markdown("#### Export Workflow")
+
+                # Filename input
+                filename = st.text_input(
+                    "Filename",
+                    value=workflow.get('name', 'workflow').replace(' ', '_') + '.json',
+                    key='workflow_filename'
+                )
+
+                # Export button
+                workflow_json_export = export_workflow(workflow)
+
+                st.download_button(
+                    label="📥 Download as JSON",
+                    data=workflow_json_export,
+                    file_name=filename,
+                    mime="application/json",
+                    use_container_width=True
+                )
+
+                st.markdown("---")
+                st.markdown("#### How to Import in n8n")
+                st.markdown("""
+                1. Open your n8n instance
+                2. Click on **Workflows** → **Import from File**
+                3. Upload the downloaded JSON file
+                4. Configure credentials if needed
+                5. Activate and test the workflow
+                """)
 
 if __name__ == '__main__':
     main()
