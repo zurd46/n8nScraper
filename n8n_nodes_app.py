@@ -117,6 +117,9 @@ def load_all_nodes():
     # Remove duplicates (prefer API over GitHub)
     df = df.drop_duplicates(subset=['node_type'], keep='first')
 
+    # Fix version column - convert all to string to avoid Arrow serialization issues
+    df['version'] = df['version'].astype(str).replace('nan', '').replace('None', '')
+
     # Categorize
     df['category'] = df.apply(categorize_node, axis=1)
 
@@ -626,9 +629,6 @@ def main():
             # Table view
             display_df = filtered_df[['display_name', 'node_type', 'category', 'version', 'description']].copy()
             display_df.columns = ['Name', 'Node Type', 'Category', 'Version', 'Description']
-
-            # Fix version column to be string type
-            display_df['Version'] = display_df['Version'].astype(str).replace('nan', '')
 
             # Truncate description
             display_df['Description'] = display_df['Description'].apply(
