@@ -18,46 +18,220 @@ load_dotenv()
 
 # Page Configuration
 st.set_page_config(
-    page_title="n8n Nodes Explorer",
-    page_icon="🔍",
+    page_title="n8n Nodes Explorer & AI Generator",
+    page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# Professional Dark Theme CSS
 st.markdown("""
 <style>
+    /* Main container styling */
     .main > div {
-        padding-top: 2rem;
+        padding-top: 1.5rem;
     }
-    .stDataFrame {
-        width: 100%;
+
+    /* Header styling - keeping visible text on dark backgrounds */
+    h1, h2, h3 {
+        font-weight: 600;
     }
-    .node-card {
+
+    /* Tab styling - Dark theme */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 2rem;
+        background-color: rgba(30, 41, 59, 0.3);
         padding: 1rem;
-        border-radius: 0.5rem;
-        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        padding: 0 2rem;
+        background-color: rgba(51, 65, 85, 0.5);
+        border-radius: 8px;
+        border: 2px solid rgba(100, 116, 139, 0.3);
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        border-color: #3b82f6;
+    }
+
+    /* Card styling - Dark theme */
+    .info-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1.5rem;
+        border-radius: 12px;
+        color: white;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .stats-card {
+        background: rgba(30, 41, 59, 0.5);
+        padding: 1.25rem;
+        border-radius: 10px;
+        border: 1px solid rgba(100, 116, 139, 0.3);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         margin-bottom: 1rem;
-        background-color: #f9f9f9;
+        backdrop-filter: blur(10px);
     }
+
+    .node-card {
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 1px solid rgba(100, 116, 139, 0.3);
+        margin-bottom: 1rem;
+        background: rgba(30, 41, 59, 0.4);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+    }
+
+    .node-card:hover {
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        transform: translateY(-2px);
+        border-color: rgba(59, 130, 246, 0.5);
+    }
+
+    /* Node type and category badges */
     .node-type {
-        font-family: monospace;
-        color: #0066cc;
-        font-weight: bold;
+        font-family: 'Courier New', monospace;
+        color: #60a5fa;
+        font-weight: 700;
+        font-size: 0.95rem;
+        background-color: rgba(59, 130, 246, 0.15);
+        padding: 0.3rem 0.6rem;
+        border-radius: 6px;
+        display: inline-block;
+        border: 1px solid rgba(59, 130, 246, 0.3);
     }
+
     .node-category {
         display: inline-block;
-        padding: 0.2rem 0.5rem;
-        border-radius: 0.3rem;
-        font-size: 0.8rem;
-        font-weight: bold;
+        padding: 0.3rem 0.8rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 600;
         margin-right: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
-    .cat-app { background-color: #e3f2fd; color: #1976d2; }
-    .cat-trigger { background-color: #fff3e0; color: #f57c00; }
-    .cat-core { background-color: #e8f5e9; color: #388e3c; }
-    .cat-langchain { background-color: #f3e5f5; color: #7b1fa2; }
-    .cat-community { background-color: #fce4ec; color: #c2185b; }
+
+    /* Category colors - vibrant gradients for dark mode */
+    .cat-app {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);
+    }
+    .cat-trigger {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: white;
+        box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4);
+    }
+    .cat-core {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4);
+    }
+    .cat-langchain {
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+        color: white;
+        box-shadow: 0 2px 6px rgba(139, 92, 246, 0.4);
+    }
+    .cat-community {
+        background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+        color: white;
+        box-shadow: 0 2px 6px rgba(236, 72, 153, 0.4);
+    }
+
+    /* Button styling - Dark theme */
+    .stButton > button {
+        border-radius: 8px;
+        font-weight: 600;
+        border: 2px solid rgba(100, 116, 139, 0.3);
+        transition: all 0.3s ease;
+        backdrop-filter: blur(5px);
+    }
+
+    .stButton > button:hover {
+        border-color: #3b82f6;
+        box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+    }
+
+    /* Input styling - Dark theme */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea {
+        border-radius: 8px;
+        border: 2px solid rgba(100, 116, 139, 0.3);
+        background-color: rgba(30, 41, 59, 0.5);
+    }
+
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    }
+
+    /* Dataframe styling */
+    .stDataFrame {
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Metric styling */
+    [data-testid="stMetricValue"] {
+        font-size: 2rem;
+        font-weight: 700;
+    }
+
+    /* Workflow preview - keep dark for code display */
+    .workflow-preview {
+        background-color: #1e293b;
+        padding: 1.5rem;
+        border-radius: 10px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+        color: #e2e8f0;
+        max-height: 600px;
+        overflow-y: auto;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(100, 116, 139, 0.3);
+    }
+
+    /* AI section styling */
+    .ai-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 2rem;
+        border-radius: 12px;
+        color: white;
+        text-align: center;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
+    }
+
+    .feature-box {
+        background: rgba(30, 41, 59, 0.5);
+        padding: 1.5rem;
+        border-radius: 10px;
+        border-left: 4px solid #3b82f6;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        margin-bottom: 1rem;
+        backdrop-filter: blur(10px);
+    }
+
+    /* Ensure good contrast for code blocks */
+    code {
+        background-color: rgba(30, 41, 59, 0.6);
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        border: 1px solid rgba(100, 116, 139, 0.3);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -118,7 +292,8 @@ def load_all_nodes():
     df = df.drop_duplicates(subset=['node_type'], keep='first')
 
     # Fix version column - convert all to string to avoid Arrow serialization issues
-    df['version'] = df['version'].astype(str).replace('nan', '').replace('None', '')
+    if 'version' in df.columns:
+        df['version'] = df['version'].fillna('').astype(str).replace('nan', '').replace('None', '')
 
     # Categorize
     df['category'] = df.apply(categorize_node, axis=1)
@@ -487,88 +662,130 @@ def get_category_color(category):
     return category_map.get(category, 'cat-app')
 
 def main():
-    # Header
-    st.title("🔍 n8n Nodes Explorer & AI Workflow Generator")
+    # Professional Header with gradient background
+    st.markdown("""
+    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 2rem; border-radius: 15px; margin-bottom: 2rem;
+                box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);'>
+        <h1 style='color: white; margin: 0; font-size: 2.5rem; font-weight: 800;'>
+            🚀 n8n Workflow Studio
+        </h1>
+        <p style='color: rgba(255,255,255,0.9); margin: 0.5rem 0 0 0; font-size: 1.2rem;'>
+            Explore 500+ Nodes & Generate AI-Powered Workflows
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Main tabs
+    # Main tabs with elegant icons
     tab1, tab2 = st.tabs(["🔍 Node Explorer", "🤖 AI Workflow Generator"])
 
     # Load data
-    with st.spinner('Loading node data...'):
+    with st.spinner('🔄 Loading node database...'):
         df = load_all_nodes()
 
     # ===== TAB 1: NODE EXPLORER =====
     with tab1:
-        st.markdown("Search all available n8n node types (Official, Community & Custom)")
+        # Info banner
+        st.markdown("""
+        <div class='stats-card'>
+            <h3 style='margin: 0 0 0.5rem 0; color: #1e293b;'>📚 Complete Node Directory</h3>
+            <p style='margin: 0; color: #64748b;'>
+                Browse and search through official, community, and custom n8n nodes.
+                Find the perfect integration for your automation workflows.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
-        # Sidebar - Filters
-        st.sidebar.header("🎯 Filters & Options")
+        # Sidebar - Compact organized sections
+        st.sidebar.markdown("""
+        <div style='text-align: center; padding: 0.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    border-radius: 8px; margin-bottom: 1rem;'>
+            <h3 style='color: white; margin: 0; font-size: 1.1rem;'>⚙️ Controls</h3>
+        </div>
+        """, unsafe_allow_html=True)
 
-        # Category filter
-        categories = ['All'] + sorted(df['category'].unique().tolist())
-        selected_categories = st.sidebar.multiselect(
-            "Categories",
-            options=categories,
-            default=['All']
-        )
-
-        # Sort options
-        sort_options = ['Relevance', 'Name (A-Z)', 'Name (Z-A)', 'Node Type (A-Z)', 'Category']
-        sort_by = st.sidebar.selectbox("Sort by", sort_options)
-
-        # View mode
-        view_mode = st.sidebar.radio(
-            "View",
-            options=['Cards', 'Table', 'Compact List'],
-            index=1  # Default to Table view
-        )
-
-        # Statistics in sidebar
-        st.sidebar.markdown("---")
-        st.sidebar.header("📊 Statistics")
+        # Quick Stats at top - compact
         stats = get_category_stats(df)
-
         total_nodes = len(df)
-        st.sidebar.metric(label="Total Nodes", value=f"{total_nodes:,}")
 
-        for category, count in sorted(stats.items()):
-            if category:  # Only show metrics with non-empty category names
-                st.sidebar.metric(label=category, value=f"{count:,}")
+        st.sidebar.markdown(f"""
+        <div style='background: rgba(59, 130, 246, 0.1); padding: 0.75rem; border-radius: 6px;
+                    border-left: 3px solid #3b82f6; margin-bottom: 1rem;'>
+            <div style='font-size: 1.5rem; font-weight: 700; color: #3b82f6;'>{total_nodes:,}</div>
+            <div style='font-size: 0.8rem; color: #94a3b8;'>Total Nodes Available</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        # Main content - Search
-        st.markdown("---")
-        search_col1, search_col2 = st.columns([3, 1])
+        # Filters Section - compact
+        with st.sidebar.expander("🎯 Filters", expanded=True):
+            categories = ['All'] + sorted(df['category'].unique().tolist())
+            selected_categories = st.multiselect(
+                "Categories",
+                options=categories,
+                default=['All'],
+                label_visibility="collapsed"
+            )
+
+        # Display Options - compact
+        with st.sidebar.expander("🎨 Display", expanded=True):
+            sort_options = ['Relevance', 'Name (A-Z)', 'Name (Z-A)', 'Node Type (A-Z)', 'Category']
+            sort_by = st.selectbox(
+                "Sort",
+                sort_options,
+                label_visibility="collapsed"
+            )
+
+            view_mode = st.radio(
+                "View",
+                options=['Table', 'Cards', 'Compact'],
+                index=0,
+                horizontal=True,
+                label_visibility="collapsed"
+            )
+
+        # Statistics - very compact
+        with st.sidebar.expander("📊 Statistics"):
+            for category, count in sorted(stats.items()):
+                if category and category.strip():
+                    st.markdown(f"""
+                    <div style='display: flex; justify-content: space-between; padding: 0.25rem 0;'>
+                        <span style='font-size: 0.85rem;'>{category}</span>
+                        <span style='font-weight: 600; color: #3b82f6;'>{count:,}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        # Main content - Search Section
+        st.markdown("### 🔍 Search Nodes")
+
+        # Initialize search term in session state if not present
+        if 'search_term' not in st.session_state:
+            st.session_state['search_term'] = ''
+
+        search_col1, search_col2 = st.columns([4, 1])
 
         with search_col1:
-            # Initialize search term in session state if not present
-            if 'search_term' not in st.session_state:
-                st.session_state['search_term'] = ''
-
             search_term = st.text_input(
-                "🔎 Intelligent Search",
+                "Search",
                 value=st.session_state['search_term'],
-                placeholder="e.g. 'email', 'database', 'ai', 'payment'...",
-                help="""
-                **Intelligent Search with Synonyms:**
-                - 'email' → finds Gmail, Outlook, SMTP, etc.
-                - 'database' → finds Postgres, MySQL, MongoDB, etc.
-                - 'ai' → finds OpenAI, Anthropic, LangChain, etc.
-                - 'chat' → finds Slack, Teams, Discord, etc.
-                - 'cloud' → finds AWS, Azure, Google Cloud, etc.
-                """,
-                key='search_input'
+                placeholder="Search by name, type, or description... (e.g., 'email', 'database', 'ai')",
+                help="🧠 **Intelligent Search** - Automatically expands your search with related terms and synonyms",
+                key='search_input',
+                label_visibility="collapsed"
             )
-            # Update session state when text input changes
             st.session_state['search_term'] = search_term
 
         with search_col2:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("🔄 Reset", use_container_width=True):
+            if st.button("🔄 Clear Search", use_container_width=True, type="secondary"):
                 st.session_state['search_term'] = ''
                 st.rerun()
 
-        # Quick search buttons
-        st.markdown("**Quick Search:**")
+        # Quick search buttons in elegant card
+        st.markdown("""
+        <div class='stats-card' style='margin-top: 1rem;'>
+            <p style='margin: 0 0 0.75rem 0; color: #64748b; font-weight: 600;'>⚡ Quick Search</p>
+        </div>
+        """, unsafe_allow_html=True)
+
         quick_col1, quick_col2, quick_col3, quick_col4, quick_col5, quick_col6 = st.columns(6)
 
         quick_searches = {
@@ -583,7 +800,7 @@ def main():
         cols = [quick_col1, quick_col2, quick_col3, quick_col4, quick_col5, quick_col6]
         for col, (label, term) in zip(cols, quick_searches.items()):
             with col:
-                if st.button(label, use_container_width=True):
+                if st.button(label, use_container_width=True, key=f"quick_{term}"):
                     st.session_state['search_term'] = term
                     st.rerun()
 
@@ -594,15 +811,32 @@ def main():
         if search_term:
             expanded_terms = expand_search_terms(search_term)
             if len(expanded_terms) > 1:
-                with st.expander(f"🧠 Intelligent Search: '{search_term}' → {len(expanded_terms)} terms", expanded=False):
-                    st.info(f"Search expanded to: **{', '.join(expanded_terms[:10])}**" +
-                           (f" +{len(expanded_terms)-10} more" if len(expanded_terms) > 10 else ""))
+                with st.expander(f"🧠 Intelligent Search Expansion", expanded=False):
+                    st.markdown(f"""
+                    <div class='feature-box'>
+                        <strong>'{search_term}'</strong> expanded to <strong>{len(expanded_terms)}</strong> related terms:<br>
+                        <small>{', '.join(expanded_terms[:15])}{' +' + str(len(expanded_terms)-15) + ' more' if len(expanded_terms) > 15 else ''}</small>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-        # Results count
-        st.markdown(f"**{len(filtered_df):,}** nodes found")
-
-        # Display results based on view mode
+        # Results header with count
         st.markdown("---")
+        result_col1, result_col2 = st.columns([3, 1])
+
+        with result_col1:
+            st.markdown(f"""
+            <h3 style='margin: 0;'>
+                📋 Results <span style='color: #3b82f6;'>({len(filtered_df):,} nodes)</span>
+            </h3>
+            """, unsafe_allow_html=True)
+
+        with result_col2:
+            if search_term or selected_categories != ['All']:
+                if st.button("↻ Show All Nodes", use_container_width=True):
+                    st.session_state['search_term'] = ''
+                    st.rerun()
+
+        st.markdown("<br>", unsafe_allow_html=True)
 
         if len(filtered_df) == 0:
             st.info("No nodes found. Try a different search.")
@@ -687,25 +921,71 @@ def main():
 
     # ===== TAB 2: AI WORKFLOW GENERATOR =====
     with tab2:
-        st.markdown("Generate n8n workflows from natural language using AI")
+        # AI Header banner
+        st.markdown("""
+        <div class='ai-header'>
+            <h2 style='margin: 0; font-size: 2rem; font-weight: 800;'>
+                ✨ AI-Powered Workflow Generator
+            </h2>
+            <p style='margin: 0.5rem 0 0 0; font-size: 1.1rem; opacity: 0.95;'>
+                Describe your automation in plain language, and let AI create the workflow
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
         # Check for API key
         api_key = os.getenv('OPENAI_API_KEY', '')
 
         if not api_key:
-            st.error("⚠️ OpenAI API Key not found in environment variables")
-            st.info("Please add OPENAI_API_KEY to your .env file")
-            st.code("OPENAI_API_KEY=sk-your-key-here", language="bash")
+            st.markdown("""
+            <div class='feature-box' style='border-left-color: #ef4444;'>
+                <h4 style='color: #ef4444; margin-top: 0;'>⚠️ API Key Required</h4>
+                <p>OpenAI API Key not found. Please add it to your <code>.env</code> file:</p>
+                <code style='background: #f1f5f9; padding: 0.5rem; border-radius: 4px; display: block;'>
+                    OPENAI_API_KEY=sk-your-key-here
+                </code>
+            </div>
+            """, unsafe_allow_html=True)
             return
 
         # Load node context for AI
-        with st.spinner('Loading node database for AI...'):
+        with st.spinner('🔄 Loading AI context...'):
             nodes_context = load_node_context_for_ai(limit=100)
 
-        st.info(f"📚 Loaded {len(nodes_context)} nodes for AI context")
+        # Features info
+        col_feat1, col_feat2, col_feat3 = st.columns(3)
+
+        with col_feat1:
+            st.markdown("""
+            <div class='stats-card' style='text-align: center;'>
+                <div style='font-size: 2rem; margin-bottom: 0.5rem;'>🤖</div>
+                <div style='font-weight: 600; color: #1e293b;'>GPT-4 Powered</div>
+                <div style='color: #64748b; font-size: 0.9rem;'>Advanced AI Generation</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col_feat2:
+            st.markdown(f"""
+            <div class='stats-card' style='text-align: center;'>
+                <div style='font-size: 2rem; margin-bottom: 0.5rem;'>📚</div>
+                <div style='font-weight: 600; color: #1e293b;'>{len(nodes_context)} Nodes</div>
+                <div style='color: #64748b; font-size: 0.9rem;'>In AI Context</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col_feat3:
+            st.markdown("""
+            <div class='stats-card' style='text-align: center;'>
+                <div style='font-size: 2rem; margin-bottom: 0.5rem;'>⚡</div>
+                <div style='font-weight: 600; color: #1e293b;'>Instant Export</div>
+                <div style='color: #64748b; font-size: 0.9rem;'>Ready for n8n</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
 
         # Example prompts
-        st.markdown("### 💡 Example Prompts")
+        st.markdown("### 💡 Quick Start Templates")
         examples_col1, examples_col2, examples_col3 = st.columns(3)
 
         with examples_col1:
@@ -720,27 +1000,39 @@ def main():
             if st.button("🤖 AI Content Generator", use_container_width=True, key='ex3'):
                 st.session_state['ai_prompt'] = "Receive a topic via webhook, use OpenAI to generate content, and post to Slack"
 
-        # Prompt input
+        # Prompt input section
+        st.markdown("---")
         st.markdown("### ✍️ Describe Your Workflow")
+        st.markdown("<small style='color: #94a3b8;'>Explain what you want your workflow to do in plain language. Be as specific or general as you like.</small>", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+
         ai_prompt = st.text_area(
-            "What should the workflow do?",
+            "Workflow Description",
             value=st.session_state.get('ai_prompt', ''),
-            placeholder="Example: Create a workflow that monitors Gmail for new emails, extracts attachments, and uploads them to Google Drive",
-            height=100,
-            key='ai_prompt_input'
+            placeholder="Example: Create a workflow that monitors Gmail for new emails with attachments, extracts the attachments, and uploads them to a specific Google Drive folder. Send a Slack notification when complete.",
+            height=120,
+            key='ai_prompt_input',
+            label_visibility="collapsed"
         )
 
         if 'ai_prompt_input' in st.session_state and st.session_state['ai_prompt_input']:
             st.session_state['ai_prompt'] = st.session_state['ai_prompt_input']
 
-        # Generate button
-        col1, col2 = st.columns([3, 1])
+        st.markdown("<br>", unsafe_allow_html=True)
 
-        with col1:
-            generate_button = st.button("🚀 Generate Workflow with AI", type="primary", use_container_width=True)
+        # Generate button row
+        gen_col1, gen_col2 = st.columns([3, 1])
 
-        with col2:
-            if st.button("🗑️ Clear", use_container_width=True, key='clear_ai'):
+        with gen_col1:
+            generate_button = st.button(
+                "🚀 Generate Workflow with AI",
+                type="primary",
+                use_container_width=True,
+                help="Generate an n8n workflow based on your description"
+            )
+
+        with gen_col2:
+            if st.button("🗑️ Clear All", use_container_width=True, key='clear_ai', type="secondary"):
                 st.session_state['ai_prompt'] = ''
                 st.session_state['ai_workflow'] = None
                 st.rerun()
