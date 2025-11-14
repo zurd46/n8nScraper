@@ -775,7 +775,7 @@ def main():
             st.session_state['search_term'] = search_term
 
         with search_col2:
-            if st.button("🔄 Clear Search", use_container_width=True, type="secondary"):
+            if st.button("🔄 Clear Search", width='stretch', type="secondary"):
                 st.session_state['search_term'] = ''
                 st.rerun()
 
@@ -800,7 +800,7 @@ def main():
         cols = [quick_col1, quick_col2, quick_col3, quick_col4, quick_col5, quick_col6]
         for col, (label, term) in zip(cols, quick_searches.items()):
             with col:
-                if st.button(label, use_container_width=True, key=f"quick_{term}"):
+                if st.button(label, width='stretch', key=f"quick_{term}"):
                     st.session_state['search_term'] = term
                     st.rerun()
 
@@ -832,7 +832,7 @@ def main():
 
         with result_col2:
             if search_term or selected_categories != ['All']:
-                if st.button("↻ Show All Nodes", use_container_width=True):
+                if st.button("↻ Show All Nodes", width='stretch'):
                     st.session_state['search_term'] = ''
                     st.rerun()
 
@@ -884,7 +884,7 @@ def main():
 
             st.dataframe(
                 display_df,
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
                 height=600
             )
@@ -989,15 +989,15 @@ def main():
         examples_col1, examples_col2, examples_col3 = st.columns(3)
 
         with examples_col1:
-            if st.button("📧 Email on Webhook", use_container_width=True, key='ex1'):
+            if st.button("📧 Email on Webhook", width='stretch', key='ex1'):
                 st.session_state['ai_prompt'] = "Create a workflow that receives a webhook and sends an email with the data"
 
         with examples_col2:
-            if st.button("🗄️ Database to Spreadsheet", use_container_width=True, key='ex2'):
+            if st.button("🗄️ Database to Spreadsheet", width='stretch', key='ex2'):
                 st.session_state['ai_prompt'] = "Get data from PostgreSQL and save it to Google Sheets"
 
         with examples_col3:
-            if st.button("🤖 AI Content Generator", use_container_width=True, key='ex3'):
+            if st.button("🤖 AI Content Generator", width='stretch', key='ex3'):
                 st.session_state['ai_prompt'] = "Receive a topic via webhook, use OpenAI to generate content, and post to Slack"
 
         # Prompt input section
@@ -1027,12 +1027,12 @@ def main():
             generate_button = st.button(
                 "🚀 Generate Workflow with AI",
                 type="primary",
-                use_container_width=True,
+                width='stretch',
                 help="Generate an n8n workflow based on your description"
             )
 
         with gen_col2:
-            if st.button("🗑️ Clear All", use_container_width=True, key='clear_ai', type="secondary"):
+            if st.button("🗑️ Clear All", width='stretch', key='clear_ai', type="secondary"):
                 st.session_state['ai_prompt'] = ''
                 st.session_state['ai_workflow'] = None
                 st.rerun()
@@ -1122,7 +1122,7 @@ def main():
                     data=workflow_json_export,
                     file_name=filename,
                     mime="application/json",
-                    use_container_width=True
+                    width='stretch'
                 )
 
                 st.markdown("---")
