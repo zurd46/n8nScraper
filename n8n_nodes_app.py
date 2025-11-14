@@ -357,15 +357,15 @@ def main():
 
     with search_col1:
         search_term = st.text_input(
-            "🔎 Intelligente Suche",
-            placeholder="z.B. 'email', 'database', 'ai', 'payment'...",
+            "🔎 Intelligent Search",
+            placeholder="e.g. 'email', 'database', 'ai', 'payment'...",
             help="""
-            **Intelligente Suche mit Synonymen:**
-            - 'email' → findet Gmail, Outlook, SMTP, etc.
-            - 'database' → findet Postgres, MySQL, MongoDB, etc.
-            - 'ai' → findet OpenAI, Anthropic, LangChain, etc.
-            - 'chat' → findet Slack, Teams, Discord, etc.
-            - 'cloud' → findet AWS, Azure, Google Cloud, etc.
+            **Intelligent Search with Synonyms:**
+            - 'email' → finds Gmail, Outlook, SMTP, etc.
+            - 'database' → finds Postgres, MySQL, MongoDB, etc.
+            - 'ai' → finds OpenAI, Anthropic, LangChain, etc.
+            - 'chat' → finds Slack, Teams, Discord, etc.
+            - 'cloud' → finds AWS, Azure, Google Cloud, etc.
             """
         )
 
@@ -401,18 +401,18 @@ def main():
     if search_term:
         expanded_terms = expand_search_terms(search_term)
         if len(expanded_terms) > 1:
-            with st.expander(f"🧠 Intelligente Suche: '{search_term}' → {len(expanded_terms)} Begriffe", expanded=False):
-                st.info(f"Suche erweitert auf: **{', '.join(expanded_terms[:10])}**" +
-                       (f" +{len(expanded_terms)-10} weitere" if len(expanded_terms) > 10 else ""))
+            with st.expander(f"🧠 Intelligent Search: '{search_term}' → {len(expanded_terms)} terms", expanded=False):
+                st.info(f"Search expanded to: **{', '.join(expanded_terms[:10])}**" +
+                       (f" +{len(expanded_terms)-10} more" if len(expanded_terms) > 10 else ""))
 
     # Results count
-    st.markdown(f"**{len(filtered_df):,}** Nodes gefunden")
+    st.markdown(f"**{len(filtered_df):,}** nodes found")
 
     # Display results based on view mode
     st.markdown("---")
 
     if len(filtered_df) == 0:
-        st.info("Keine Nodes gefunden. Versuche eine andere Suche.")
+        st.info("No nodes found. Try a different search.")
 
     elif view_mode == 'Cards':
         # Card view
@@ -484,9 +484,9 @@ def main():
     st.markdown(
         f"""
         <div style="text-align: center; color: #666; font-size: 0.9rem;">
-            💾 Datenbank: n8n_docs.db |
+            💾 Database: n8n_docs.db |
             📊 {total_nodes:,} Total Nodes |
-            🔄 Zuletzt aktualisiert: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+            🔄 Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}
         </div>
         """,
         unsafe_allow_html=True
