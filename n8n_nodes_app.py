@@ -105,7 +105,7 @@ def load_all_nodes():
     df_github = pd.read_sql_query(query_github, conn)
     df_community = pd.read_sql_query(query_community, conn)
 
-    # Combine all
+    # Combine all (exclude n8n API workflow nodes)
     df = pd.concat([df_api, df_github, df_community], ignore_index=True)
 
     # Remove duplicates (prefer API over GitHub)
@@ -337,7 +337,7 @@ def main():
     view_mode = st.sidebar.radio(
         "View",
         options=['Cards', 'Table', 'Compact List'],
-        index=0
+        index=1  # Default to Table view
     )
 
     # Statistics in sidebar

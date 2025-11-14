@@ -167,7 +167,14 @@ class CommunityNodesSearcher:
 
             # Versuche Node-Types zu extrahieren
             node_types_list = self.extract_node_types_from_package(name)
-            node_types_str = ', '.join(node_types_list) if node_types_list else ''
+            # Handle both string and dict node types
+            if node_types_list:
+                node_types_str = ', '.join([
+                    str(nt) if isinstance(nt, str) else str(nt.get('name', nt))
+                    for nt in node_types_list
+                ])
+            else:
+                node_types_str = ''
 
             cursor.execute('''
                 INSERT OR REPLACE INTO community_nodes
