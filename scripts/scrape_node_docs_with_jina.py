@@ -13,7 +13,7 @@ import time
 from datetime import datetime
 
 class JinaNodeDocsScraper:
-    def __init__(self, db_path='../n8n_docs.db'):
+    def __init__(self, db_path='../data/n8n_docs.db'):
         self.conn = sqlite3.connect(db_path)
         self.cursor = self.conn.cursor()
         self.jina_reader_base = "https://r.jina.ai/"
@@ -313,7 +313,7 @@ def main():
     print("n8n Node Documentation Scraper (Jina AI)")
     print("=" * 60)
 
-    scraper = JinaNodeDocsScraper('../n8n_docs.db')
+    scraper = JinaNodeDocsScraper('../data/n8n_docs.db')
 
     # Scrape ALL nodes
     print("\nScraping ALL nodes from database...")

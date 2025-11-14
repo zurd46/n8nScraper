@@ -376,6 +376,7 @@ def main():
     with search_col2:
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("🔄 Reset", use_container_width=True):
+            st.session_state['search_term'] = ''
             st.rerun()
 
     # Quick search buttons
