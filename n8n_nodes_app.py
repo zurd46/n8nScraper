@@ -685,17 +685,6 @@ def main():
 
     # ===== TAB 1: NODE EXPLORER =====
     with tab1:
-        # Info banner
-        st.markdown("""
-        <div class='stats-card'>
-            <h3 style='margin: 0 0 0.5rem 0; color: #1e293b;'>📚 Complete Node Directory</h3>
-            <p style='margin: 0; color: #64748b;'>
-                Browse and search through official, community, and custom n8n nodes.
-                Find the perfect integration for your automation workflows.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-
         # Sidebar - Compact organized sections
         st.sidebar.markdown("""
         <div style='text-align: center; padding: 0.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -921,93 +910,36 @@ def main():
 
     # ===== TAB 2: AI WORKFLOW GENERATOR =====
     with tab2:
-        # AI Header banner
-        st.markdown("""
-        <div class='ai-header'>
-            <h2 style='margin: 0; font-size: 2rem; font-weight: 800;'>
-                ✨ AI-Powered Workflow Generator
-            </h2>
-            <p style='margin: 0.5rem 0 0 0; font-size: 1.1rem; opacity: 0.95;'>
-                Describe your automation in plain language, and let AI create the workflow
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-
         # Check for API key
         api_key = os.getenv('OPENAI_API_KEY', '')
 
         if not api_key:
-            st.markdown("""
-            <div class='feature-box' style='border-left-color: #ef4444;'>
-                <h4 style='color: #ef4444; margin-top: 0;'>⚠️ API Key Required</h4>
-                <p>OpenAI API Key not found. Please add it to your <code>.env</code> file:</p>
-                <code style='background: #f1f5f9; padding: 0.5rem; border-radius: 4px; display: block;'>
-                    OPENAI_API_KEY=sk-your-key-here
-                </code>
-            </div>
-            """, unsafe_allow_html=True)
+            st.error("⚠️ OpenAI API Key not found in .env file")
+            st.code("OPENAI_API_KEY=sk-your-key-here", language="bash")
             return
 
         # Load node context for AI
         with st.spinner('🔄 Loading AI context...'):
             nodes_context = load_node_context_for_ai(limit=100)
 
-        # Features info
-        col_feat1, col_feat2, col_feat3 = st.columns(3)
-
-        with col_feat1:
-            st.markdown("""
-            <div class='stats-card' style='text-align: center;'>
-                <div style='font-size: 2rem; margin-bottom: 0.5rem;'>🤖</div>
-                <div style='font-weight: 600; color: #1e293b;'>GPT-4 Powered</div>
-                <div style='color: #64748b; font-size: 0.9rem;'>Advanced AI Generation</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with col_feat2:
-            st.markdown(f"""
-            <div class='stats-card' style='text-align: center;'>
-                <div style='font-size: 2rem; margin-bottom: 0.5rem;'>📚</div>
-                <div style='font-weight: 600; color: #1e293b;'>{len(nodes_context)} Nodes</div>
-                <div style='color: #64748b; font-size: 0.9rem;'>In AI Context</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with col_feat3:
-            st.markdown("""
-            <div class='stats-card' style='text-align: center;'>
-                <div style='font-size: 2rem; margin-bottom: 0.5rem;'>⚡</div>
-                <div style='font-weight: 600; color: #1e293b;'>Instant Export</div>
-                <div style='color: #64748b; font-size: 0.9rem;'>Ready for n8n</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # Example prompts
-        st.markdown("### 💡 Quick Start Templates")
-        examples_col1, examples_col2, examples_col3 = st.columns(3)
-
-        with examples_col1:
-            if st.button("📧 Email on Webhook", width='stretch', key='ex1'):
-                st.session_state['ai_prompt'] = "Create a workflow that receives a webhook and sends an email with the data"
-                st.rerun()
-
-        with examples_col2:
-            if st.button("🗄️ Database to Spreadsheet", width='stretch', key='ex2'):
-                st.session_state['ai_prompt'] = "Get data from PostgreSQL and save it to Google Sheets"
-                st.rerun()
-
-        with examples_col3:
-            if st.button("🤖 AI Content Generator", width='stretch', key='ex3'):
-                st.session_state['ai_prompt'] = "Receive a topic via webhook, use OpenAI to generate content, and post to Slack"
-                st.rerun()
-
-        # Prompt input section
-        st.markdown("---")
+        # Prompt input directly - compact
         st.markdown("### ✍️ Describe Your Workflow")
-        st.markdown("<small style='color: #94a3b8;'>Explain what you want your workflow to do in plain language. Be as specific or general as you like.</small>", unsafe_allow_html=True)
-        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Quick templates in expander - collapsed by default
+        with st.expander("💡 Quick Templates", expanded=False):
+            tcol1, tcol2, tcol3 = st.columns(3)
+            with tcol1:
+                if st.button("📧 Email Webhook", use_container_width=True, key='ex1'):
+                    st.session_state['ai_prompt'] = "Create a workflow that receives a webhook and sends an email with the data"
+                    st.rerun()
+            with tcol2:
+                if st.button("🗄️ DB to Sheets", use_container_width=True, key='ex2'):
+                    st.session_state['ai_prompt'] = "Get data from PostgreSQL and save it to Google Sheets"
+                    st.rerun()
+            with tcol3:
+                if st.button("🤖 AI Content", use_container_width=True, key='ex3'):
+                    st.session_state['ai_prompt'] = "Receive a topic via webhook, use OpenAI to generate content, and post to Slack"
+                    st.rerun()
 
         ai_prompt = st.text_area(
             "Workflow Description",
