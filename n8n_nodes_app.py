@@ -238,10 +238,10 @@ def generate_workflow_with_openai(prompt, api_key, nodes_context):
     Generate n8n workflow using OpenAI API
     """
     try:
-        from openai import OpenAI
+        import openai
 
-        # Initialize OpenAI client
-        client = OpenAI(api_key=api_key)
+        # Set API key (compatible with openai 0.28)
+        openai.api_key = api_key
 
         # Build system message with node context
         system_message = f"""You are an expert n8n workflow automation engineer.
@@ -250,13 +250,14 @@ You help users create n8n workflows in JSON format.
 Available n8n nodes (selection):
 {json.dumps(nodes_context[:20], indent=2)}
 
-IMPORTANT RULES:
-1. Return ONLY valid n8n workflow JSON
-2. Use exact node types from the list above
-3. Include proper node connections
-4. Set realistic parameters
-5. Use expressions like {{{{ $json.fieldname }}}} for dynamic values
-6. Follow n8n workflow schema exactly
+CRITICAL RULES:
+1. ALWAYS return valid n8n workflow JSON - NEVER ask questions or provide explanations
+2. If the user's request is vague, make reasonable assumptions and create a working workflow
+3. Use exact node types from the list above
+4. Include proper node connections between all nodes
+5. Set realistic parameters with sensible defaults
+6. Use expressions like {{{{ $json.fieldname }}}} for dynamic values
+7. Follow n8n workflow schema exactly
 
 Example workflow structure:
 {{
@@ -267,7 +268,16 @@ Example workflow structure:
       "name": "Node Name",
       "type": "n8n-nodes-base.nodetype",
       "typeVersion": 1,
-      "position": [250, 300]
+      "position": [250, 300],
+      "id": "unique-id-1"
+    }},
+    {{
+      "parameters": {{}},
+      "name": "Next Node",
+      "type": "n8n-nodes-base.nexttype",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "id": "unique-id-2"
     }}
   ],
   "connections": {{
@@ -277,10 +287,10 @@ Example workflow structure:
   }}
 }}
 
-Return ONLY the JSON, no explanations."""
+MANDATORY: Return ONLY the JSON workflow, absolutely NO explanations, questions, or additional text."""
 
-        # Call OpenAI API with new client interface
-        response = client.chat.completions.create(
+        # Call OpenAI API (compatible with openai 0.28)
+        response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": system_message},
@@ -308,9 +318,9 @@ Return ONLY the JSON, no explanations."""
         return workflow, None
 
     except ImportError:
-        return None, "OpenAI package not installed. Run: pip install openai"
+        return None, "OpenAI package not installed. Run: pip install openai==0.28"
     except json.JSONDecodeError as e:
-        return None, f"Invalid JSON generated: {e}\n\nRaw response: {workflow_json[:500]}"
+        return None, f"Invalid JSON generated: {e}\n\nRaw response: {workflow_json[:500] if 'workflow_json' in locals() else 'N/A'}"
     except Exception as e:
         return None, f"Error: {str(e)}"
 
@@ -506,7 +516,8 @@ def main():
         st.sidebar.metric(label="Total Nodes", value=f"{total_nodes:,}")
 
         for category, count in sorted(stats.items()):
-            st.sidebar.metric(label=category, value=f"{count:,}")
+            if category:  # Only show metrics with non-empty category names
+                st.sidebar.metric(label=category, value=f"{count:,}")
 
         # Main content - Search
         st.markdown("---")
@@ -615,6 +626,9 @@ def main():
             # Table view
             display_df = filtered_df[['display_name', 'node_type', 'category', 'version', 'description']].copy()
             display_df.columns = ['Name', 'Node Type', 'Category', 'Version', 'Description']
+
+            # Fix version column to be string type
+            display_df['Version'] = display_df['Version'].astype(str).replace('nan', '')
 
             # Truncate description
             display_df['Description'] = display_df['Description'].apply(
