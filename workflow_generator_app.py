@@ -10,6 +10,10 @@ import sqlite3
 import json
 import os
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Page Configuration
 st.set_page_config(
@@ -251,12 +255,18 @@ def main():
     # Sidebar - Configuration
     st.sidebar.header("⚙️ Configuration")
 
-    # OpenAI API Key
+    # OpenAI API Key - Load from env or manual input
+    default_api_key = os.getenv('OPENAI_API_KEY', '')
+
     api_key = st.sidebar.text_input(
         "OpenAI API Key",
+        value=default_api_key,
         type="password",
-        help="Enter your OpenAI API key (starts with sk-...)"
+        help="Enter your OpenAI API key (starts with sk-...) or set OPENAI_API_KEY in .env file"
     )
+
+    if default_api_key:
+        st.sidebar.success("✅ API Key loaded from .env")
 
     # Model selection
     model = st.sidebar.selectbox(

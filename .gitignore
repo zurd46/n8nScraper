@@ -44,5 +44,8 @@ Thumbs.db
 n8n_docs.db
 *.log
 
+# Environment variables
+.env
+
 # Streamlit
 .streamlit/
