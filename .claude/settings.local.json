@@ -9,7 +9,8 @@
       "Bash(curl:*)",
       "Bash(sqlite3:*)",
       "Bash(pip install:*)",
-      "Bash(streamlit run:*)"
+      "Bash(streamlit run:*)",
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": []

@@ -191,7 +191,7 @@ class N8nApiScraper:
                 node_info = {
                     'node_type': node_type,
                     'display_name': node_name,
-                    'description': f'Extrahiert aus Workflows',
+                    'description': '',
                     'version': '1',
                     'icon': '',
                     'category': ''

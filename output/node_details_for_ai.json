@@ -1,0 +1,62 @@
+[
+  {
+    "node_type": "@mendable/n8n-nodes-preview-firecrawl.firecrawl",
+    "operations": [],
+    "credentials": [],
+    "examples": []
+  },
+  {
+    "node_type": "@n8n/n8n-nodes-langchain.agent",
+    "operations": [],
+    "credentials": [],
+    "examples": []
+  },
+  {
+    "node_type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+    "operations": [],
+    "credentials": [],
+    "examples": []
+  },
+  {
+    "node_type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+    "operations": [],
+    "credentials": [],
+    "examples": []
+  },
+  {
+    "node_type": "@n8n/n8n-nodes-langchain.openAi",
+    "operations": [],
+    "credentials": [],
+    "examples": []
+  },
+  {
+    "node_type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+    "operations": [],
+    "credentials": [],
+    "examples": []
+  },
+  {
+    "node_type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+    "operations": [],
+    "credentials": [],
+    "examples": []
+  },
+  {
+    "node_type": "@zurdai/n8n-nodes-bexio.bexio",
+    "operations": [],
+    "credentials": [],
+    "examples": []
+  },
+  {
+    "node_type": "@zurdai/n8n-nodes-personalfinder.personalFinder",
+    "operations": [],
+    "credentials": [],
+    "examples": []
+  },
+  {
+    "node_type": "CUSTOM.personalFinder",
+    "operations": [],
+    "credentials": [],
+    "examples": []
+  }
+]
