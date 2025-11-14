@@ -54,11 +54,25 @@ st.markdown("""
         border: 2px solid rgba(100, 116, 139, 0.3);
         font-weight: 600;
         font-size: 1.1rem;
+        color: #94a3b8 !important;
+    }
+
+    .stTabs [data-baseweb="tab"] p,
+    .stTabs [data-baseweb="tab"] span,
+    .stTabs [data-baseweb="tab"] div {
+        color: #94a3b8 !important;
     }
 
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
         border-color: #3b82f6;
+        color: white !important;
+    }
+
+    .stTabs [aria-selected="true"] p,
+    .stTabs [aria-selected="true"] span,
+    .stTabs [aria-selected="true"] div {
+        color: white !important;
     }
 
     /* Card styling - Dark theme */
