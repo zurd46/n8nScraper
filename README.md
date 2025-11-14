@@ -1,191 +1,302 @@
-# n8n Documentation Scraper
+# n8n Nodes Scraper & Explorer
 
-Ein Python-basierter Web Scraper, der die komplette n8n Dokumentation mit der Jina AI Reader API scraped und in einer SQLite-Datenbank speichert.
+Eine umfassende Sammlung von Tools zum Scrapen, Speichern und Durchsuchen aller n8n Node-Types (Official, Community & Custom).
 
-## Features
+## 🎯 Features
 
-- Verwendet Jina AI Reader API für sauberes Markdown-Format
-- Rekursives Crawling aller verlinkten Seiten
-- SQLite-Datenbank für strukturierte Speicherung
-- Automatische Link-Extraktion und -Verfolgung
-- Fortschrittsanzeige während des Crawlings
-- Duplikat-Erkennung (keine doppelten URLs)
-- Statistiken über gescrapte Daten
+- **Intelligente Suche** - Synonym-basierte Suche mit Relevanz-Ranking
+- **Multi-Source Scraping** - Holt Nodes aus n8n Docs, GitHub, npm Registry und n8n API
+- **SQLite Datenbank** - Zentrale Speicherung aller Node-Informationen
+- **Streamlit Web-App** - Interaktive UI zum Durchsuchen aller Nodes
+- **Automatische camelCase Korrektur** - Stellt sicher, dass Node-Namen workflow-kompatibel sind
 
-## Voraussetzungen
+## 📁 Projekt-Struktur
 
-- Python 3.7+
-- Jina AI API Key (bereits im Code eingetragen)
-- Virtuelle Umgebung (empfohlen)
-
-## Installation
-
-1. Repository klonen oder Dateien herunterladen
-
-2. Virtuelle Umgebung erstellen und aktivieren:
-```bash
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-source .venv/bin/activate  # Linux/Mac
+```
+n8nScraper/
+├── scripts/                    # Scraping Scripts
+│   ├── scraper.py             # Jina AI Documentation Scraper
+│   ├── github_node_scraper.py # GitHub Repository Scraper
+│   ├── n8n_api_scraper.py     # n8n API Scraper
+│   ├── search_community_nodes.py # npm Registry Community Nodes
+│   └── populate_all_nodes.py  # Populate DB with complete node list
+│
+├── utils/                      # Utility Scripts
+│   ├── check_casing.py        # Verify node name casing
+│   ├── check_community_stats.py # Community nodes statistics
+│   ├── show_stats.py          # Database statistics
+│   ├── export_nodes_to_md.py  # Export to Markdown
+│   └── fix_node_casing.py     # Fix lowercase to camelCase
+│
+├── docs/                       # Documentation
+│   ├── README.md              # This file
+│   ├── README_APP.md          # Streamlit App Documentation
+│   └── INTELLIGENT_SEARCH.md  # Search algorithm docs
+│
+├── data/                       # Data files
+│   └── n8n_docs.db           # SQLite database (auto-generated)
+│
+├── output/                     # Generated output
+│   └── n8n_node_types.md     # Markdown export of all nodes
+│
+├── n8n_nodes_app.py           # Main Streamlit Application
+├── requirements.txt           # Python dependencies
+└── .gitignore                # Git ignore rules
 ```
 
-3. Abhängigkeiten installieren:
+## 🚀 Quick Start
+
+### 1. Installation
+
 ```bash
+# Clone Repository
+git clone https://github.com/yourusername/n8nScraper.git
+cd n8nScraper
+
+# Install Dependencies
 pip install -r requirements.txt
 ```
 
-## Verwendung
+### 2. Daten sammeln (Optional)
 
-### Einfacher Start
-
-Das Skript startet automatisch beim Integrations-Bereich und crawled alle verlinkten Seiten:
+Die Datenbank ist bereits vorausgefüllt. Falls du sie neu erstellen möchtest:
 
 ```bash
-python scraper.py
+# Offizielle Nodes (443 Nodes)
+python scripts/populate_all_nodes.py
+
+# GitHub Nodes (bis zu 307 Nodes, API-limitiert)
+python scripts/github_node_scraper.py
+
+# n8n API Nodes (aus deinen Workflows)
+python scripts/n8n_api_scraper.py
+
+# Community Nodes von npm (~20.000+ Nodes)
+python scripts/search_community_nodes.py
+
+# camelCase Korrektur anwenden
+python utils/fix_node_casing.py
 ```
 
-### Konfiguration
+### 3. Streamlit App starten
 
-Im Code können Sie folgende Parameter anpassen:
+```bash
+streamlit run n8n_nodes_app.py
+```
+
+Die App öffnet sich automatisch unter `http://localhost:8501`
+
+## 📊 Datenquellen
+
+| Quelle | Nodes | Beschreibung |
+|--------|-------|--------------|
+| **populate_all_nodes.py** | 443 | Vollständige Liste offizieller n8n Nodes |
+| **github_node_scraper.py** | ~66 | Direkt aus GitHub Repository .node.json Files |
+| **n8n_api_scraper.py** | 31 | Extrahiert aus eigenen n8n Workflows |
+| **search_community_nodes.py** | ~20.000+ | Community Nodes von npm Registry |
+
+**Gesamt:** ~21.000+ Nodes in der Datenbank
+
+## 🔍 Intelligente Suche
+
+Die Streamlit App verwendet eine intelligente Suche mit:
+
+- **Synonym-Erweiterung** - "email" findet automatisch Gmail, Outlook, SMTP, etc.
+- **Relevanz-Ranking** - Beste Matches zuerst
+- **Kategorie-Filter** - Nach App, Trigger, Core, LangChain, Community
+- **Quick Search Buttons** - Häufige Suchen mit einem Klick
+
+### Beispiel-Suchen:
+
+```
+email     → Gmail, Outlook, SMTP, IMAP, Mailchimp, SendGrid...
+database  → Postgres, MySQL, MongoDB, Redis, SQL...
+ai        → OpenAI, Anthropic, Claude, GPT, Gemini, LangChain...
+chat      → Slack, Teams, Discord, Telegram, WhatsApp...
+cloud     → AWS, Azure, Google Cloud, S3, Drive, Dropbox...
+```
+
+Siehe [INTELLIGENT_SEARCH.md](docs/INTELLIGENT_SEARCH.md) für Details.
+
+## 🗃️ Datenbank-Schema
+
+```sql
+-- Offizielle Nodes aus Dokumentation
+CREATE TABLE node_types_api (
+    node_type TEXT UNIQUE NOT NULL,      -- z.B. n8n-nodes-base.gmail
+    display_name TEXT,                   -- z.B. Gmail
+    description TEXT,
+    category TEXT,                       -- App, Trigger, Core, LangChain
+    version INTEGER,
+    icon TEXT,
+    scraped_at TIMESTAMP
+);
+
+-- Nodes aus GitHub Repository
+CREATE TABLE node_types_github (
+    node_type TEXT UNIQUE NOT NULL,
+    display_name TEXT,
+    description TEXT,
+    version INTEGER,
+    folder_path TEXT,
+    scraped_at TIMESTAMP
+);
+
+-- Community Nodes von npm
+CREATE TABLE community_nodes (
+    package_name TEXT UNIQUE NOT NULL,  -- z.B. @apify/n8n-nodes-apify
+    node_types TEXT,
+    description TEXT,
+    version TEXT,
+    author TEXT,
+    repository TEXT,
+    downloads INTEGER,
+    scraped_at TIMESTAMP
+);
+
+-- Scraping Queue/Log
+CREATE TABLE pages (
+    url TEXT UNIQUE NOT NULL,
+    title TEXT,
+    node_type TEXT,
+    markdown_content TEXT,
+    scraped_at TIMESTAMP
+);
+```
+
+## 🛠️ Utility Scripts
+
+### Statistiken anzeigen
+
+```bash
+python utils/show_stats.py
+```
+
+Zeigt Anzahl der Nodes pro Kategorie.
+
+### Community Nodes Status
+
+```bash
+python utils/check_community_stats.py
+```
+
+Zeigt Fortschritt des Community Node Scrapings.
+
+### Casing überprüfen
+
+```bash
+python utils/check_casing.py
+```
+
+Vergleicht Groß-/Kleinschreibung zwischen GitHub und API Nodes.
+
+### Export zu Markdown
+
+```bash
+python utils/export_nodes_to_md.py
+```
+
+Exportiert alle Nodes in eine übersichtliche Markdown-Datei.
+
+## ⚙️ Konfiguration
+
+### n8n API Key (für n8n_api_scraper.py)
+
+Setze deine n8n API Credentials in `scripts/n8n_api_scraper.py`:
 
 ```python
-# In scraper.py, main() Funktion:
-
-# Start-URL ändern
-start_url = 'https://docs.n8n.io/integrations/'
-
-# Maximale Anzahl Seiten begrenzen (für Tests)
-scraper.crawl(start_url, max_pages=50)
-
-# Unbegrenztes Crawling
-scraper.crawl(start_url, max_pages=None)
+API_URL = "https://your-n8n-instance.com"
+API_KEY = "your-api-key-here"
 ```
 
-## Datenbank-Schema
+### Jina AI Key (für scraper.py - optional)
 
-### Tabelle: `pages`
-Speichert die gescrapten Seiten:
-- `id`: Primärschlüssel
-- `url`: Eindeutige URL der Seite
-- `title`: Seitentitel (extrahiert aus Markdown)
-- `markdown_content`: Vollständiger Inhalt im Markdown-Format
-- `scraped_at`: Zeitstempel des Scrapings
-- `status`: Status (success/error)
-
-### Tabelle: `links`
-Speichert Links zwischen Seiten:
-- `id`: Primärschlüssel
-- `source_url`: Quell-URL
-- `target_url`: Ziel-URL
-- `link_text`: Text des Links
-
-## Ausgabe
-
-Während des Crawlings sehen Sie:
-```
-🚀 Starte Crawling von: https://docs.n8n.io/integrations/
-📊 Max. Seiten: unbegrenzt
-
-[1/∞] Crawling: https://docs.n8n.io/integrations/
-  📥 Fetching via Jina AI: https://docs.n8n.io/integrations/
-  ✓ Gespeichert: Integrations
-  📎 45 Links gefunden, 45 in Warteschlange
-
-[2/∞] Crawling: https://docs.n8n.io/integrations/builtin/
-  ...
-```
-
-Nach Abschluss:
-```
-✅ Crawling abgeschlossen!
-📊 Insgesamt 250 Seiten gecrawlt
-
-📈 Statistiken:
-   ✓ Erfolgreiche Seiten: 248
-   ✗ Fehlerhafte Seiten: 2
-   🔗 Gespeicherte Links: 1250
-
-💾 Datenbank geschlossen
-```
-
-## Datenbank-Abfragen
-
-Nach dem Scraping können Sie die SQLite-Datenbank abfragen:
+Für Dokumentations-Scraping via Jina AI Reader:
 
 ```python
-import sqlite3
-
-conn = sqlite3.connect('n8n_docs.db')
-cursor = conn.cursor()
-
-# Alle Seiten anzeigen
-cursor.execute("SELECT title, url FROM pages WHERE status='success'")
-pages = cursor.fetchall()
-
-# Nach bestimmtem Inhalt suchen
-cursor.execute("SELECT title, url FROM pages WHERE markdown_content LIKE '%webhook%'")
-results = cursor.fetchall()
-
-# Alle Links einer Seite
-cursor.execute("SELECT target_url, link_text FROM links WHERE source_url = ?",
-               ('https://docs.n8n.io/integrations/',))
-links = cursor.fetchall()
+JINA_API_KEY = "your-jina-api-key"
 ```
 
-Oder mit einem SQLite-Browser wie [DB Browser for SQLite](https://sqlitebrowser.org/).
+## 📈 Performance
 
-## Features im Detail
+- **Suche:** <100ms für vollständige Suche über 20.000+ Nodes
+- **Caching:** 60 Sekunden TTL für Datenbankabfragen
+- **Scraping Rate Limits:**
+  - GitHub API: 60 req/h (unauth) / 5000 req/h (auth)
+  - npm Registry: keine bekannten Limits
+  - n8n API: abhängig von deiner Instanz
 
-### Jina AI Reader API
-- Konvertiert HTML automatisch in sauberes Markdown
-- Entfernt Navigation und Footer
-- Behält die Struktur und Formatierung bei
-- Extrahiert alle Links aus dem Content
+## 🔧 Entwicklung
 
-### Intelligentes Crawling
-- Vermeidet Duplikate durch URL-Tracking
-- Filtert externe Links automatisch
-- Höfliche Verzögerung (1 Sekunde) zwischen Requests
-- Kann jederzeit mit Ctrl+C abgebrochen werden
+### Neue Synonyme hinzufügen
 
-### Fehlerbehandlung
-- Bei Fehlern wird die Seite als 'error' markiert
-- Crawling wird fortgesetzt
-- Statistiken zeigen erfolgreiche und fehlerhafte Seiten
+Bearbeite `n8n_nodes_app.py`:
 
-## Einschränkungen
-
-- Crawled nur Seiten von `docs.n8n.io`
-- Überspringt API-Endpoints, Downloads und Suchseiten
-- PDF und ZIP-Dateien werden nicht heruntergeladen
-
-## Anpassungen
-
-### Andere Domains crawlen
 ```python
-self.base_url = 'https://ihre-domain.de'
+def expand_search_terms(search_term):
+    synonyms = {
+        'dein_begriff': ['synonym1', 'synonym2', 'synonym3'],
+        # ... weitere
+    }
 ```
 
-### Filter anpassen
-In der `should_crawl()` Methode:
-```python
-exclude_patterns = [
-    '/api/',
-    '/downloads/',
-    '.pdf',
-    # Ihre eigenen Ausschlüsse hier
-]
+### Neue Datenquelle hinzufügen
+
+1. Erstelle neues Script in `scripts/`
+2. Verbinde mit `n8n_docs.db`
+3. Füge Daten in entsprechende Tabelle ein
+4. Aktualisiere `n8n_nodes_app.py` um neue Quelle zu laden
+
+## 📝 Wichtige Hinweise
+
+### camelCase ist wichtig!
+
+n8n Workflow JSON Files benötigen **exakte camelCase** Node-Namen:
+
+```json
+{
+  "type": "n8n-nodes-base.microsoftOutlook"  // ✅ Richtig
+}
 ```
 
-### Verzögerung ändern
-```python
-time.sleep(1)  # In Sekunden
+**NICHT:**
+```json
+{
+  "type": "n8n-nodes-base.microsoftoutlook"  // ❌ Falsch - funktioniert nicht!
+}
 ```
 
-## Lizenz
+Das Script `utils/fix_node_casing.py` korrigiert automatisch alle lowercase Namen zu camelCase.
 
-MIT License - Frei verwendbar für private und kommerzielle Projekte
+## 🤝 Contributing
 
-## Support
+Contributions sind willkommen! Besonders:
 
-Bei Fragen oder Problemen erstellen Sie bitte ein Issue auf GitHub.
+- Neue Synonyme für die intelligente Suche
+- Weitere Datenquellen
+- Verbesserungen der Streamlit App
+- Dokumentation
+
+## 📄 Lizenz
+
+MIT License
+
+## 🔗 Links
+
+- [n8n Documentation](https://docs.n8n.io/)
+- [n8n GitHub](https://github.com/n8n-io/n8n)
+- [n8n Community](https://community.n8n.io/)
+- [npm Registry](https://www.npmjs.com/search?q=n8n-nodes)
+
+## 👨‍💻 Autor
+
+Erstellt mit Claude Code
+
+---
+
+**Status:**
+- ✅ 443 Official Nodes
+- ✅ 66 GitHub Nodes
+- ✅ 20.000+ Community Nodes
+- ✅ Intelligente Suche
+- ✅ Streamlit Web-App

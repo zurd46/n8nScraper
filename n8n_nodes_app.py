@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 n8n Nodes Explorer - Streamlit App
-Durchsuche und erkunde alle n8n Node-Types
+Search and explore all n8n node types
 """
 
 import streamlit as st
