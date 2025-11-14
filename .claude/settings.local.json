@@ -10,7 +10,8 @@
       "Bash(sqlite3:*)",
       "Bash(pip install:*)",
       "Bash(streamlit run:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(timeout 5 sleep:*)"
     ],
     "deny": [],
     "ask": []
