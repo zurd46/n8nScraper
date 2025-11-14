@@ -312,41 +312,41 @@ def get_category_color(category):
 def main():
     # Header
     st.title("🔍 n8n Nodes Explorer")
-    st.markdown("Durchsuche alle verfügbaren n8n Node-Types (Official, Community & Custom)")
+    st.markdown("Search all available n8n node types (Official, Community & Custom)")
 
     # Load data
-    with st.spinner('Lade Node-Daten...'):
+    with st.spinner('Loading node data...'):
         df = load_all_nodes()
 
     # Sidebar - Filters
-    st.sidebar.header("🎯 Filter & Optionen")
+    st.sidebar.header("🎯 Filters & Options")
 
     # Category filter
     categories = ['All'] + sorted(df['category'].unique().tolist())
     selected_categories = st.sidebar.multiselect(
-        "Kategorien",
+        "Categories",
         options=categories,
         default=['All']
     )
 
     # Sort options
     sort_options = ['Relevance', 'Name (A-Z)', 'Name (Z-A)', 'Node Type (A-Z)', 'Category']
-    sort_by = st.sidebar.selectbox("Sortieren nach", sort_options)
+    sort_by = st.sidebar.selectbox("Sort by", sort_options)
 
     # View mode
     view_mode = st.sidebar.radio(
-        "Ansicht",
+        "View",
         options=['Cards', 'Table', 'Compact List'],
         index=0
     )
 
     # Statistics in sidebar
     st.sidebar.markdown("---")
-    st.sidebar.header("📊 Statistiken")
+    st.sidebar.header("📊 Statistics")
     stats = get_category_stats(df)
 
     total_nodes = len(df)
-    st.sidebar.metric("Gesamt Nodes", f"{total_nodes:,}")
+    st.sidebar.metric("Total Nodes", f"{total_nodes:,}")
 
     for category, count in sorted(stats.items()):
         st.sidebar.metric(category, f"{count:,}")
