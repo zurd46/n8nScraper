@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(timeout 10 sleep:*)",
+      "Bash(nul)",
+      "Bash(ping:*)",
+      "Bash(curl -H \"X-N8N-API-KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3YTZjN2E0NC1mMGIzLTRmYjMtOGM0NS02NDM1MzcwZmFlZWMiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzYzMTI4MjA3fQ.avDQGD8t1ui96uCxsexNjyQvTEmN0VIjWuSDLK4kqhM\" https://zurdai.ngrok.io/api/v1/)",
+      "Bash(curl:*)",
+      "Bash(sqlite3:*)",
+      "Bash(pip install:*)",
+      "Bash(streamlit run:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
