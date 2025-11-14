@@ -939,29 +939,24 @@ def main():
         # Prompt input directly - compact
         st.markdown("### ✍️ Describe Your Workflow")
 
-        # Initialize ai_prompt in session state if not present
-        if 'ai_prompt_input' not in st.session_state:
-            st.session_state['ai_prompt_input'] = ''
-
         # Quick templates in expander - collapsed by default
         with st.expander("💡 Quick Templates", expanded=False):
             tcol1, tcol2, tcol3 = st.columns(3)
             with tcol1:
-                if st.button("📧 Email Webhook", use_container_width=True, key='ex1'):
+                if st.button("📧 Email Webhook", width='stretch', key='ex1'):
                     st.session_state['ai_prompt_input'] = "Create a workflow that receives a webhook and sends an email with the data"
                     st.rerun()
             with tcol2:
-                if st.button("🗄️ DB to Sheets", use_container_width=True, key='ex2'):
+                if st.button("🗄️ DB to Sheets", width='stretch', key='ex2'):
                     st.session_state['ai_prompt_input'] = "Get data from PostgreSQL and save it to Google Sheets"
                     st.rerun()
             with tcol3:
-                if st.button("🤖 AI Content", use_container_width=True, key='ex3'):
+                if st.button("🤖 AI Content", width='stretch', key='ex3'):
                     st.session_state['ai_prompt_input'] = "Receive a topic via webhook, use OpenAI to generate content, and post to Slack"
                     st.rerun()
 
         ai_prompt = st.text_area(
             "Workflow Description",
-            value=st.session_state['ai_prompt_input'],
             placeholder="Example: Create a workflow that monitors Gmail for new emails with attachments, extracts the attachments, and uploads them to a specific Google Drive folder. Send a Slack notification when complete.",
             height=120,
             key='ai_prompt_input',
@@ -982,7 +977,7 @@ def main():
             )
 
         with gen_col2:
-            if st.button("🗑️ Clear All", use_container_width=True, key='clear_ai', type="secondary"):
+            if st.button("🗑️ Clear All", width='stretch', key='clear_ai', type="secondary"):
                 st.session_state['ai_prompt_input'] = ''
                 if 'ai_workflow' in st.session_state:
                     del st.session_state['ai_workflow']
