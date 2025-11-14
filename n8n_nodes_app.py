@@ -238,10 +238,10 @@ def generate_workflow_with_openai(prompt, api_key, nodes_context):
     Generate n8n workflow using OpenAI API
     """
     try:
-        import openai
+        from openai import OpenAI
 
-        # Set API key
-        openai.api_key = api_key
+        # Initialize OpenAI client
+        client = OpenAI(api_key=api_key)
 
         # Build system message with node context
         system_message = f"""You are an expert n8n workflow automation engineer.
@@ -279,8 +279,8 @@ Example workflow structure:
 
 Return ONLY the JSON, no explanations."""
 
-        # Call OpenAI API
-        response = openai.ChatCompletion.create(
+        # Call OpenAI API with new client interface
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": system_message},
@@ -295,10 +295,12 @@ Return ONLY the JSON, no explanations."""
 
         # Remove markdown code blocks if present
         if workflow_json.startswith('```'):
-            workflow_json = workflow_json.split('```')[1]
-            if workflow_json.startswith('json'):
-                workflow_json = workflow_json[4:]
-            workflow_json = workflow_json.strip()
+            parts = workflow_json.split('```')
+            if len(parts) >= 2:
+                workflow_json = parts[1]
+                if workflow_json.startswith('json'):
+                    workflow_json = workflow_json[4:]
+                workflow_json = workflow_json.strip()
 
         # Parse to validate
         workflow = json.loads(workflow_json)
@@ -308,7 +310,7 @@ Return ONLY the JSON, no explanations."""
     except ImportError:
         return None, "OpenAI package not installed. Run: pip install openai"
     except json.JSONDecodeError as e:
-        return None, f"Invalid JSON generated: {e}"
+        return None, f"Invalid JSON generated: {e}\n\nRaw response: {workflow_json[:500]}"
     except Exception as e:
         return None, f"Error: {str(e)}"
 
