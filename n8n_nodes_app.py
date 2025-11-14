@@ -991,14 +991,17 @@ def main():
         with examples_col1:
             if st.button("📧 Email on Webhook", width='stretch', key='ex1'):
                 st.session_state['ai_prompt'] = "Create a workflow that receives a webhook and sends an email with the data"
+                st.rerun()
 
         with examples_col2:
             if st.button("🗄️ Database to Spreadsheet", width='stretch', key='ex2'):
                 st.session_state['ai_prompt'] = "Get data from PostgreSQL and save it to Google Sheets"
+                st.rerun()
 
         with examples_col3:
             if st.button("🤖 AI Content Generator", width='stretch', key='ex3'):
                 st.session_state['ai_prompt'] = "Receive a topic via webhook, use OpenAI to generate content, and post to Slack"
+                st.rerun()
 
         # Prompt input section
         st.markdown("---")
