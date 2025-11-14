@@ -58,7 +58,7 @@ st.markdown("""
 @st.cache_resource
 def get_database_connection():
     """Cached database connection"""
-    return sqlite3.connect('n8n_docs.db', check_same_thread=False)
+    return sqlite3.connect('data/n8n_docs.db', check_same_thread=False)
 
 @st.cache_data(ttl=60)
 def load_all_nodes():
@@ -358,6 +358,7 @@ def main():
     with search_col1:
         search_term = st.text_input(
             "🔎 Intelligent Search",
+            value=st.session_state.get('search_term', ''),
             placeholder="e.g. 'email', 'database', 'ai', 'payment'...",
             help="""
             **Intelligent Search with Synonyms:**
@@ -366,8 +367,11 @@ def main():
             - 'ai' → finds OpenAI, Anthropic, LangChain, etc.
             - 'chat' → finds Slack, Teams, Discord, etc.
             - 'cloud' → finds AWS, Azure, Google Cloud, etc.
-            """
+            """,
+            key='search_input'
         )
+        if search_term:
+            st.session_state['search_term'] = search_term
 
     with search_col2:
         st.markdown("<br>", unsafe_allow_html=True)
@@ -391,7 +395,7 @@ def main():
     for col, (label, term) in zip(cols, quick_searches.items()):
         with col:
             if st.button(label, use_container_width=True):
-                search_term = term
+                st.session_state['search_term'] = term
                 st.rerun()
 
     # Filter and search

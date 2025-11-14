@@ -58,7 +58,7 @@ st.markdown("""
 @st.cache_resource
 def get_database_connection():
     """Cached database connection"""
-    return sqlite3.connect('n8n_docs.db', check_same_thread=False)
+    return sqlite3.connect('data/n8n_docs.db', check_same_thread=False)
 
 def load_node_context(limit=50):
     """
