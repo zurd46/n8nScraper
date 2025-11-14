@@ -239,12 +239,10 @@ def load_node_context_for_ai(limit=100):
 def generate_workflow_with_openai(prompt, api_key, nodes_context):
     """
     Generate n8n workflow using OpenAI API
+    Compatible with both openai 0.28 and 1.0+
     """
     try:
         import openai
-
-        # Set API key (compatible with openai 0.28)
-        openai.api_key = api_key
 
         # Build system message with node context
         system_message = f"""You are an expert n8n workflow automation engineer.
@@ -292,19 +290,34 @@ Example workflow structure:
 
 MANDATORY: Return ONLY the JSON workflow, absolutely NO explanations, questions, or additional text."""
 
-        # Call OpenAI API (compatible with openai 0.28)
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": f"Create an n8n workflow for: {prompt}"}
-            ],
-            temperature=0.7,
-            max_tokens=2000
-        )
-
-        # Extract workflow JSON
-        workflow_json = response.choices[0].message.content.strip()
+        # Check OpenAI version and use appropriate API
+        try:
+            # Try new API (openai >= 1.0.0)
+            from openai import OpenAI
+            client = OpenAI(api_key=api_key)
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": f"Create an n8n workflow for: {prompt}"}
+                ],
+                temperature=0.7,
+                max_tokens=2000
+            )
+            workflow_json = response.choices[0].message.content.strip()
+        except (ImportError, AttributeError):
+            # Fallback to old API (openai 0.28)
+            openai.api_key = api_key
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": f"Create an n8n workflow for: {prompt}"}
+                ],
+                temperature=0.7,
+                max_tokens=2000
+            )
+            workflow_json = response.choices[0].message.content.strip()
 
         # Remove markdown code blocks if present
         if workflow_json.startswith('```'):
@@ -321,7 +334,7 @@ MANDATORY: Return ONLY the JSON workflow, absolutely NO explanations, questions,
         return workflow, None
 
     except ImportError:
-        return None, "OpenAI package not installed. Run: pip install openai==0.28"
+        return None, "OpenAI package not installed. Run: pip install openai"
     except json.JSONDecodeError as e:
         return None, f"Invalid JSON generated: {e}\n\nRaw response: {workflow_json[:500] if 'workflow_json' in locals() else 'N/A'}"
     except Exception as e:
@@ -684,8 +697,6 @@ def main():
             st.info("Please add OPENAI_API_KEY to your .env file")
             st.code("OPENAI_API_KEY=sk-your-key-here", language="bash")
             return
-
-        st.success("✅ OpenAI API Key loaded from .env")
 
         # Load node context for AI
         with st.spinner('Loading node database for AI...'):
