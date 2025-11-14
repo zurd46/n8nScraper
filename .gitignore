@@ -24,8 +24,7 @@ wheels/
 .installed.cfg
 *.egg
 
-# SQLite
-*.db
+# SQLite (exclude generic db files, but allow data/n8n_docs.db)
 *.sqlite
 *.sqlite3
 
@@ -41,7 +40,7 @@ wheels/
 Thumbs.db
 
 # Project specific
-n8n_docs.db
+/n8n_docs.db
 *.log
 
 # Environment variables
