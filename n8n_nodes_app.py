@@ -394,8 +394,8 @@ def calculate_relevance_score(row, search_terms):
 
 def load_node_context_for_ai(limit=100):
     """
-    Load node information for AI context
-    Returns nodes with their operations, parameters, and credentials
+    Load COMPREHENSIVE node information for AI context
+    Returns nodes with their operations, parameters, and credentials from database
     """
     conn = get_database_connection()
     cursor = conn.cursor()
@@ -419,8 +419,57 @@ def load_node_context_for_ai(limit=100):
             'node_type': node_type,
             'display_name': display_name,
             'description': description,
-            'category': category
+            'category': category,
+            'operations': [],
+            'parameters': [],
+            'credentials': []
         }
+
+        # Get ALL operations for this node from database
+        cursor.execute('''
+            SELECT operation, description
+            FROM node_operations
+            WHERE node_type = ?
+            ORDER BY operation
+        ''', (node_type,))
+
+        for operation, op_desc in cursor.fetchall():
+            node_info['operations'].append({
+                'operation': operation,
+                'description': op_desc or ''
+            })
+
+        # Get key parameters for this node from database (limit to top 10)
+        cursor.execute('''
+            SELECT parameter_name, display_name, parameter_type, required, description
+            FROM node_parameters
+            WHERE node_type = ?
+            ORDER BY required DESC, parameter_name
+            LIMIT 10
+        ''', (node_type,))
+
+        for param_name, param_display, param_type, required, param_desc in cursor.fetchall():
+            node_info['parameters'].append({
+                'name': param_name,
+                'display_name': param_display or param_name,
+                'type': param_type or 'string',
+                'required': bool(required),
+                'description': param_desc or ''
+            })
+
+        # Get credentials for this node from database
+        cursor.execute('''
+            SELECT credential_type, display_name
+            FROM node_credentials
+            WHERE node_type = ?
+        ''', (node_type,))
+
+        for cred_type, cred_display in cursor.fetchall():
+            node_info['credentials'].append({
+                'type': cred_type,
+                'display_name': cred_display or cred_type
+            })
+
         nodes_data.append(node_info)
 
     return nodes_data
@@ -433,49 +482,73 @@ def generate_workflow_with_openai(prompt, api_key, nodes_context):
     try:
         import openai
 
-        # Build system message with node context
+        # Build system message with COMPREHENSIVE node context from database
         system_message = f"""You are an expert n8n workflow automation engineer.
 You help users create n8n workflows in JSON format.
 
-Available n8n nodes (selection):
-{json.dumps(nodes_context[:20], indent=2)}
+Available n8n nodes with FULL details from database (operations, parameters, credentials):
+{json.dumps(nodes_context[:15], indent=2)}
 
 CRITICAL RULES:
 1. ALWAYS return valid n8n workflow JSON - NEVER ask questions or provide explanations
 2. If the user's request is vague, make reasonable assumptions and create a working workflow
-3. Use exact node types from the list above
-4. Include proper node connections between all nodes
-5. Set realistic parameters with sensible defaults
-6. Use expressions like {{{{ $json.fieldname }}}} for dynamic values
-7. Follow n8n workflow schema exactly
+3. Use EXACT node types from the list above (e.g., "n8n-nodes-base.gmail")
+4. Use CORRECT operations from the operations list for each node
+5. Include REQUIRED parameters from the parameters list
+6. Set realistic parameter values based on the parameter types and descriptions
+7. Include proper node connections between all nodes
+8. Use expressions like {{{{ $json.fieldname }}}} for dynamic values between nodes
+9. Add credentials configuration when nodes require authentication
+10. Follow n8n workflow schema exactly
 
-Example workflow structure:
+Example workflow structure with proper parameters:
 {{
   "name": "Workflow Name",
   "nodes": [
     {{
-      "parameters": {{}},
-      "name": "Node Name",
-      "type": "n8n-nodes-base.nodetype",
-      "typeVersion": 1,
+      "parameters": {{
+        "operation": "send",
+        "to": "user@example.com",
+        "subject": "Test",
+        "message": "{{{{ $json.data }}}}"
+      }},
+      "name": "Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
       "position": [250, 300],
-      "id": "unique-id-1"
+      "id": "node-1",
+      "credentials": {{
+        "gmailOAuth2": {{
+          "id": "1",
+          "name": "Gmail account"
+        }}
+      }}
     }},
     {{
-      "parameters": {{}},
-      "name": "Next Node",
-      "type": "n8n-nodes-base.nexttype",
+      "parameters": {{
+        "url": "https://api.example.com/data",
+        "method": "GET"
+      }},
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 1,
       "position": [500, 300],
-      "id": "unique-id-2"
+      "id": "node-2"
     }}
   ],
   "connections": {{
-    "Node Name": {{
-      "main": [[{{"node": "Next Node", "type": "main", "index": 0}}]]
+    "HTTP Request": {{
+      "main": [[{{"node": "Gmail", "type": "main", "index": 0}}]]
     }}
   }}
 }}
+
+IMPORTANT PARAMETER RULES:
+- Use the exact parameter names from the parameters list
+- Set values according to the parameter type (string, number, boolean, etc.)
+- Include all required parameters
+- For operation-based nodes, set the "operation" parameter first
+- Use expressions {{{{ $json.fieldname }}}} to pass data between nodes
 
 MANDATORY: Return ONLY the JSON workflow, absolutely NO explanations, questions, or additional text."""
 
@@ -491,7 +564,7 @@ MANDATORY: Return ONLY the JSON workflow, absolutely NO explanations, questions,
                     {"role": "user", "content": f"Create an n8n workflow for: {prompt}"}
                 ],
                 temperature=0.7,
-                max_tokens=2000
+                max_tokens=3000  # Increased for more complex workflows with parameters
             )
             workflow_json = response.choices[0].message.content.strip()
         except (ImportError, AttributeError):
@@ -504,7 +577,7 @@ MANDATORY: Return ONLY the JSON workflow, absolutely NO explanations, questions,
                     {"role": "user", "content": f"Create an n8n workflow for: {prompt}"}
                 ],
                 temperature=0.7,
-                max_tokens=2000
+                max_tokens=3000  # Increased for more complex workflows with parameters
             )
             workflow_json = response.choices[0].message.content.strip()
 
@@ -932,9 +1005,16 @@ def main():
             st.code("OPENAI_API_KEY=sk-your-key-here", language="bash")
             return
 
-        # Load node context for AI
-        with st.spinner('🔄 Loading AI context...'):
+        # Load node context for AI with comprehensive database info
+        with st.spinner('🔄 Loading comprehensive node data from database (operations, parameters, credentials)...'):
             nodes_context = load_node_context_for_ai(limit=100)
+
+        # Show what was loaded
+        total_ops = sum(len(n.get('operations', [])) for n in nodes_context)
+        total_params = sum(len(n.get('parameters', [])) for n in nodes_context)
+        total_creds = sum(len(n.get('credentials', [])) for n in nodes_context)
+
+        st.success(f"✅ Loaded {len(nodes_context)} nodes with {total_ops} operations, {total_params} parameters, {total_creds} credentials")
 
         # Prompt input directly - compact
         st.markdown("### ✍️ Describe Your Workflow")
