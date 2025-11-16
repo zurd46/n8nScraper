@@ -254,9 +254,8 @@ def get_database_connection():
     """Cached database connection - using ROOT database with FULL data"""
     return sqlite3.connect('n8n_docs.db', check_same_thread=False)
 
-@st.cache_data(ttl=60)
 def load_all_nodes():
-    """Load all nodes from database"""
+    """Load all nodes from database - cached in session_state"""
     conn = get_database_connection()
 
     # Official nodes from API
@@ -396,6 +395,7 @@ def load_node_context_for_ai(limit=None):
     """
     Load COMPREHENSIVE node information for AI context
     Returns ALL nodes with their operations, parameters, and credentials from database
+    NOTE: Not cached due to complex dict structures
     """
     conn = get_database_connection()
     cursor = conn.cursor()
@@ -493,239 +493,93 @@ def generate_workflow_with_openai(prompt, api_key, nodes_context):
     """
     try:
         import openai
+        import traceback
 
         # Build COMPREHENSIVE system message with ALL available node context
         # Group nodes by availability of details
-        detailed_nodes = [n for n in nodes_context if n.get('operations') or n.get('parameters')]
-        basic_nodes = [n for n in nodes_context if not n.get('operations') and not n.get('parameters')]
+        try:
+            detailed_nodes = [n for n in nodes_context if n.get('operations') or n.get('parameters')]
+            basic_nodes = [n for n in nodes_context if not n.get('operations') and not n.get('parameters')]
+        except Exception as e:
+            print(f"✗ Error grouping nodes: {type(e).__name__}: {e}")
+            traceback.print_exc()
+            return None, f"Error preparing node context: {str(e)}"
 
-        system_message = f"""You are an EXPERT n8n workflow automation engineer with DEEP knowledge of all n8n nodes.
-Your task: Create production-ready, fully functional n8n workflows in JSON format.
+        # Debug output
+        print(f"\n=== AI WORKFLOW GENERATION DEBUG ===")
+        print(f"Total nodes in context: {len(nodes_context)}")
+        print(f"Detailed nodes (with ops/params): {len(detailed_nodes)}")
+        print(f"Basic nodes: {len(basic_nodes)}")
+        print(f"User prompt: {prompt}")
+        print(f"======================================\n")
 
-=== AVAILABLE NODES DATABASE ===
+        # Serialize node data safely - LIMIT to reduce token count!
+        # Only send essential info for detailed nodes (top 10 most useful)
+        try:
+            # Prioritize nodes with most parameters (likely most useful)
+            detailed_sorted = sorted(detailed_nodes, key=lambda x: len(x.get('parameters', [])), reverse=True)[:10]
 
-NODES WITH FULL DETAILS ({len(detailed_nodes)} nodes):
-{json.dumps(detailed_nodes, indent=2)}
+            # Compact format - only essential fields
+            detailed_compact = []
+            for n in detailed_sorted:
+                compact = {
+                    'type': n['node_type'],
+                    'name': n['display_name'],
+                }
+                if n.get('operations'):
+                    compact['ops'] = [op['operation'] for op in n['operations'][:3]]  # Max 3 ops
+                if n.get('parameters'):
+                    compact['params'] = [{'name': p['name'], 'type': p.get('type', 'string'), 'req': p.get('required', False)} for p in n['parameters'][:5]]  # Max 5 params
+                if n.get('credentials'):
+                    compact['creds'] = [c['type'] for c in n['credentials'][:2]]  # Max 2 creds
+                detailed_compact.append(compact)
 
-ADDITIONAL AVAILABLE NODES ({min(len(basic_nodes), 50)} of {len(basic_nodes)} shown):
-{json.dumps([{{'node_type': n['node_type'], 'display_name': n['display_name'], 'description': n['description']}} for n in basic_nodes[:50]], indent=2)}
+            detailed_nodes_json = json.dumps(detailed_compact, indent=2, default=str)
 
-=== CRITICAL WORKFLOW GENERATION RULES ===
+            # Basic nodes - just node types and names (no descriptions to save tokens)
+            basic_nodes_json = json.dumps([{'type': n['node_type'], 'name': n['display_name']} for n in basic_nodes[:30]], indent=2, default=str)
 
-1. OUTPUT FORMAT:
-   - Return ONLY valid JSON - NO markdown, NO explanations, NO questions
-   - If user request is unclear, make intelligent assumptions based on common use cases
+            print(f"Serialized {len(detailed_compact)} detailed nodes, {min(30, len(basic_nodes))} basic nodes")
+        except Exception as e:
+            print(f"⚠ JSON serialization warning: {e}")
+            detailed_nodes_json = "[]"
+            basic_nodes_json = "[]"
 
-2. NODE SELECTION:
-   - Use nodes from the DETAILED list whenever possible (they have complete parameter info)
-   - For nodes without details, infer standard parameters from node type and common patterns
+        system_message = f"""You are an n8n workflow expert. Create production-ready workflows in JSON.
 
-3. PARAMETER ACCURACY (CRITICAL!):
-   - For detailed nodes: Use EXACT parameter names, types, and required fields from database
-   - For basic nodes: Research common parameters for that node type
-   - ALWAYS include the "operation" parameter for operational nodes (send, get, create, update, delete, etc.)
-   - Set realistic values - use {{{{ $json.fieldname }}}} for data flow between nodes
+TOP NODES (sorted by detail):
+{detailed_nodes_json}
 
-4. REQUIRED PARAMETERS:
-   - Gmail send: to, subject, message (+ operation: "send")
-   - HTTP Request: method, url (+ operation: "request")
-   - Database nodes: operation, query/table, connection credentials
-   - Webhook: httpMethod, path
-   - Code: code, language
+ADDITIONAL NODES (sample):
+{basic_nodes_json}
 
-5. DATA FLOW:
-   - Connect nodes logically with "connections" object
-   - Use expressions {{{{ $json.fieldname }}}} to pass data between nodes
-   - First node output → Second node input → Third node input, etc.
+RULES:
+- Return ONLY JSON (no markdown/explanations)
+- Use exact parameter names from node details
+- Include "operation" parameter for operational nodes
+- Connect nodes via "connections" object
+- Use {{{{ $json.field }}}} for data flow
+- Every node needs: parameters, name, type, typeVersion, position, id
+- Add credentials when needed (gmailOAuth2, httpBasicAuth, etc.)
 
-6. CREDENTIALS:
-   - Add credentials object when node requires authentication
-   - Common patterns: gmailOAuth2, httpBasicAuth, postgresDb, slackApi
-
-7. NODE STRUCTURE:
-   - Every node MUST have: parameters, name, type, typeVersion, position, id
-   - position: spread nodes [x, y] - increment x by 250 per node
-   - typeVersion: use 1 or 2 (check node details if available)
-
-8. COMPREHENSIVE EXAMPLES:
-
-Example 1 - Email Webhook (with full parameters):
 {{
-  "name": "Email on Webhook",
+  "name": "Workflow",
   "nodes": [
-    {{
-      "parameters": {{
-        "httpMethod": "POST",
-        "path": "webhook",
-        "responseMode": "onReceived"
-      }},
-      "name": "Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [250, 300],
-      "id": "node-1"
-    }},
-    {{
-      "parameters": {{
-        "operation": "send",
-        "to": "{{{{ $json.email }}}}",
-        "subject": "New Webhook Data",
-        "message": "Data: {{{{ $json.body }}}}",
-        "options": {{}}
-      }},
-      "name": "Gmail",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2,
-      "position": [500, 300],
-      "id": "node-2",
-      "credentials": {{
-        "gmailOAuth2": {{
-          "id": "1",
-          "name": "Gmail account"
-        }}
-      }}
-    }}
+    {{"parameters": {{"httpMethod": "POST", "path": "hook"}}, "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1, "position": [250, 300], "id": "1"}},
+    {{"parameters": {{"operation": "send", "to": "{{{{ $json.email }}}}", "subject": "Alert", "message": "{{{{ $json.body }}}}"}}, "name": "Gmail", "type": "n8n-nodes-base.gmail", "typeVersion": 2, "position": [500, 300], "id": "2", "credentials": {{"gmailOAuth2": {{"id": "1"}}}}}}
   ],
-  "connections": {{
-    "Webhook": {{
-      "main": [[{{"node": "Gmail", "type": "main", "index": 0}}]]
-    }}
-  }}
-}}
-
-Example 2 - Database to Slack (with operations and parameters):
-{{
-  "name": "PostgreSQL to Slack",
-  "nodes": [
-    {{
-      "parameters": {{
-        "operation": "executeQuery",
-        "query": "SELECT * FROM users WHERE active = true",
-        "options": {{}}
-      }},
-      "name": "PostgreSQL",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 1,
-      "position": [250, 300],
-      "id": "node-1",
-      "credentials": {{
-        "postgres": {{
-          "id": "1",
-          "name": "PostgreSQL DB"
-        }}
-      }}
-    }},
-    {{
-      "parameters": {{
-        "operation": "post",
-        "resource": "message",
-        "channel": "#general",
-        "text": "Found {{{{ $json.length }}}} active users",
-        "attachments": [],
-        "otherOptions": {{}}
-      }},
-      "name": "Slack",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 1,
-      "position": [500, 300],
-      "id": "node-2",
-      "credentials": {{
-        "slackApi": {{
-          "id": "1",
-          "name": "Slack API"
-        }}
-      }}
-    }}
-  ],
-  "connections": {{
-    "PostgreSQL": {{
-      "main": [[{{"node": "Slack", "type": "main", "index": 0}}]]
-    }}
-  }}
-}}
-
-Example 3 - AI Content Generation:
-{{
-  "name": "AI Content to Slack",
-  "nodes": [
-    {{
-      "parameters": {{
-        "httpMethod": "POST",
-        "path": "generate"
-      }},
-      "name": "Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [250, 300],
-      "id": "node-1"
-    }},
-    {{
-      "parameters": {{
-        "operation": "create",
-        "resource": "completion",
-        "model": "gpt-4",
-        "prompt": "Write about: {{{{ $json.body.topic }}}}",
-        "maxTokens": 500,
-        "temperature": 0.7
-      }},
-      "name": "OpenAI",
-      "type": "n8n-nodes-base.openai",
-      "typeVersion": 1,
-      "position": [500, 300],
-      "id": "node-2",
-      "credentials": {{
-        "openAiApi": {{
-          "id": "1",
-          "name": "OpenAI Account"
-        }}
-      }}
-    }},
-    {{
-      "parameters": {{
-        "operation": "post",
-        "resource": "message",
-        "channel": "#content",
-        "text": "{{{{ $json.choices[0].text }}}}"
-      }},
-      "name": "Slack",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 1,
-      "position": [750, 300],
-      "id": "node-3",
-      "credentials": {{
-        "slackApi": {{
-          "id": "1"
-        }}
-      }}
-    }}
-  ],
-  "connections": {{
-    "Webhook": {{
-      "main": [[{{"node": "OpenAI", "type": "main", "index": 0}}]]
-    }},
-    "OpenAI": {{
-      "main": [[{{"node": "Slack", "type": "main", "index": 0}}]]
-    }}
-  }}
-}}
-
-=== MANDATORY OUTPUT RULES ===
-✅ Return ONLY the JSON workflow - NO markdown blocks, NO explanations, NO questions
-✅ Include ALL required parameters for each node
-✅ Set the "operation" parameter for operational nodes (send, get, create, etc.)
-✅ Use specific values or {{{{ $json.field }}}} expressions for parameters
-✅ Connect all nodes via the "connections" object
-✅ Add credentials when nodes need authentication
-
-❌ DO NOT return anything except pure JSON
-❌ DO NOT ask clarifying questions - make smart assumptions
-❌ DO NOT use empty parameters {{}} - fill with realistic values"""
+  "connections": {{"Webhook": {{"main": [[{{"node": "Gmail", "type": "main", "index": 0}}]]}}}}
+}}"""
 
         # Check OpenAI version and use appropriate API
         try:
             # Try new API (openai >= 1.0.0)
             from openai import OpenAI
             client = OpenAI(api_key=api_key)
+
+            print("Sending request to OpenAI GPT-4...")
+            print(f"System message length: {len(system_message)} chars")
+
             response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
@@ -735,7 +589,12 @@ Example 3 - AI Content Generation:
                 temperature=0.7,
                 max_tokens=4000  # Increased for complex workflows with full parameters
             )
+
+            print(f"✓ Received response from OpenAI")
+            print(f"Tokens used: {response.usage.total_tokens if hasattr(response, 'usage') else 'N/A'}")
+
             workflow_json = response.choices[0].message.content.strip()
+            print(f"Response length: {len(workflow_json)} chars")
         except (ImportError, AttributeError):
             # Fallback to old API (openai 0.28)
             openai.api_key = api_key
@@ -751,7 +610,9 @@ Example 3 - AI Content Generation:
             workflow_json = response.choices[0].message.content.strip()
 
         # Remove markdown code blocks if present
+        print("\nProcessing response...")
         if workflow_json.startswith('```'):
+            print("⚠ Removing markdown code blocks...")
             parts = workflow_json.split('```')
             if len(parts) >= 2:
                 workflow_json = parts[1]
@@ -760,15 +621,20 @@ Example 3 - AI Content Generation:
                 workflow_json = workflow_json.strip()
 
         # Parse to validate
+        print("Parsing JSON...")
         workflow = json.loads(workflow_json)
+        print(f"✓ Valid workflow with {len(workflow.get('nodes', []))} nodes")
 
         return workflow, None
 
-    except ImportError:
+    except ImportError as e:
+        print(f"✗ Import error: {e}")
         return None, "OpenAI package not installed. Run: pip install openai"
     except json.JSONDecodeError as e:
+        print(f"✗ JSON decode error: {e}")
         return None, f"Invalid JSON generated: {e}\n\nRaw response: {workflow_json[:500] if 'workflow_json' in locals() else 'N/A'}"
     except Exception as e:
+        print(f"✗ Error: {type(e).__name__}: {e}")
         return None, f"Error: {str(e)}"
 
 def validate_workflow(workflow):
@@ -932,12 +798,16 @@ def main():
     </div>
     """, unsafe_allow_html=True)
 
+    # Load data BEFORE tabs (cache in session state to avoid hashing issues)
+    if 'all_nodes_df' not in st.session_state:
+        with st.spinner('🔄 Loading node database...'):
+            st.session_state['all_nodes_df'] = load_all_nodes()
+
+    # Create a fresh copy to avoid mutation warnings
+    df = st.session_state['all_nodes_df'].copy()
+
     # Main tabs with elegant icons
     tab1, tab2 = st.tabs(["🔍 Node Explorer", "🤖 AI Workflow Generator"])
-
-    # Load data
-    with st.spinner('🔄 Loading node database...'):
-        df = load_all_nodes()
 
     # ===== TAB 1: NODE EXPLORER =====
     with tab1:
@@ -1174,9 +1044,12 @@ def main():
             st.code("OPENAI_API_KEY=sk-your-key-here", language="bash")
             return
 
-        # Load node context for AI with comprehensive database info
-        with st.spinner('🔄 Loading comprehensive node data from database (operations, parameters, credentials)...'):
-            nodes_context = load_node_context_for_ai(limit=None)  # Load ALL nodes
+        # Load node context for AI with comprehensive database info (cache in session_state)
+        if 'nodes_context' not in st.session_state:
+            with st.spinner('🔄 Loading comprehensive node data from database (operations, parameters, credentials)...'):
+                st.session_state['nodes_context'] = load_node_context_for_ai(limit=None)  # Load ALL nodes
+
+        nodes_context = st.session_state['nodes_context']
 
         # Show what was loaded
         total_ops = sum(len(n.get('operations', [])) for n in nodes_context)
