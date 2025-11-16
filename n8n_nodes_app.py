@@ -251,8 +251,8 @@ st.markdown("""
 
 @st.cache_resource
 def get_database_connection():
-    """Cached database connection"""
-    return sqlite3.connect('data/n8n_docs.db', check_same_thread=False)
+    """Cached database connection - using ROOT database with FULL data"""
+    return sqlite3.connect('n8n_docs.db', check_same_thread=False)
 
 @st.cache_data(ttl=60)
 def load_all_nodes():
@@ -392,26 +392,38 @@ def calculate_relevance_score(row, search_terms):
 
     return score
 
-def load_node_context_for_ai(limit=100):
+def load_node_context_for_ai(limit=None):
     """
     Load COMPREHENSIVE node information for AI context
-    Returns nodes with their operations, parameters, and credentials from database
+    Returns ALL nodes with their operations, parameters, and credentials from database
     """
     conn = get_database_connection()
     cursor = conn.cursor()
 
-    # Get nodes with their details
-    cursor.execute('''
-        SELECT DISTINCT
-            n.node_type,
-            n.display_name,
-            n.description,
-            n.category
-        FROM node_types_api n
-        WHERE n.category IN ('App', 'Trigger', 'Core')
-        ORDER BY n.display_name
-        LIMIT ?
-    ''', (limit,))
+    # Get ALL nodes with their details (no limit by default)
+    if limit:
+        cursor.execute('''
+            SELECT DISTINCT
+                n.node_type,
+                n.display_name,
+                n.description,
+                n.category
+            FROM node_types_api n
+            WHERE n.category IN ('App', 'Trigger', 'Core')
+            ORDER BY n.display_name
+            LIMIT ?
+        ''', (limit,))
+    else:
+        cursor.execute('''
+            SELECT DISTINCT
+                n.node_type,
+                n.display_name,
+                n.description,
+                n.category
+            FROM node_types_api n
+            WHERE n.category IN ('App', 'Trigger', 'Core')
+            ORDER BY n.display_name
+        ''')
 
     nodes_data = []
     for node_type, display_name, description, category in cursor.fetchall():
@@ -439,22 +451,22 @@ def load_node_context_for_ai(limit=100):
                 'description': op_desc or ''
             })
 
-        # Get key parameters for this node from database (limit to top 10)
+        # Get ALL parameters for this node from database (no limit - we need everything!)
         cursor.execute('''
-            SELECT parameter_name, display_name, parameter_type, required, description
+            SELECT parameter_name, display_name, parameter_type, required, description, default_value
             FROM node_parameters
             WHERE node_type = ?
             ORDER BY required DESC, parameter_name
-            LIMIT 10
         ''', (node_type,))
 
-        for param_name, param_display, param_type, required, param_desc in cursor.fetchall():
+        for param_name, param_display, param_type, required, param_desc, default_val in cursor.fetchall():
             node_info['parameters'].append({
                 'name': param_name,
                 'display_name': param_display or param_name,
                 'type': param_type or 'string',
                 'required': bool(required),
-                'description': param_desc or ''
+                'description': param_desc or '',
+                'default': default_val
             })
 
         # Get credentials for this node from database
@@ -482,75 +494,232 @@ def generate_workflow_with_openai(prompt, api_key, nodes_context):
     try:
         import openai
 
-        # Build system message with COMPREHENSIVE node context from database
-        system_message = f"""You are an expert n8n workflow automation engineer.
-You help users create n8n workflows in JSON format.
+        # Build COMPREHENSIVE system message with ALL available node context
+        # Group nodes by availability of details
+        detailed_nodes = [n for n in nodes_context if n.get('operations') or n.get('parameters')]
+        basic_nodes = [n for n in nodes_context if not n.get('operations') and not n.get('parameters')]
 
-Available n8n nodes with FULL details from database (operations, parameters, credentials):
-{json.dumps(nodes_context[:15], indent=2)}
+        system_message = f"""You are an EXPERT n8n workflow automation engineer with DEEP knowledge of all n8n nodes.
+Your task: Create production-ready, fully functional n8n workflows in JSON format.
 
-CRITICAL RULES:
-1. ALWAYS return valid n8n workflow JSON - NEVER ask questions or provide explanations
-2. If the user's request is vague, make reasonable assumptions and create a working workflow
-3. Use EXACT node types from the list above (e.g., "n8n-nodes-base.gmail")
-4. Use CORRECT operations from the operations list for each node
-5. Include REQUIRED parameters from the parameters list
-6. Set realistic parameter values based on the parameter types and descriptions
-7. Include proper node connections between all nodes
-8. Use expressions like {{{{ $json.fieldname }}}} for dynamic values between nodes
-9. Add credentials configuration when nodes require authentication
-10. Follow n8n workflow schema exactly
+=== AVAILABLE NODES DATABASE ===
 
-Example workflow structure with proper parameters:
+NODES WITH FULL DETAILS ({len(detailed_nodes)} nodes):
+{json.dumps(detailed_nodes, indent=2)}
+
+ADDITIONAL AVAILABLE NODES ({min(len(basic_nodes), 50)} of {len(basic_nodes)} shown):
+{json.dumps([{{'node_type': n['node_type'], 'display_name': n['display_name'], 'description': n['description']}} for n in basic_nodes[:50]], indent=2)}
+
+=== CRITICAL WORKFLOW GENERATION RULES ===
+
+1. OUTPUT FORMAT:
+   - Return ONLY valid JSON - NO markdown, NO explanations, NO questions
+   - If user request is unclear, make intelligent assumptions based on common use cases
+
+2. NODE SELECTION:
+   - Use nodes from the DETAILED list whenever possible (they have complete parameter info)
+   - For nodes without details, infer standard parameters from node type and common patterns
+
+3. PARAMETER ACCURACY (CRITICAL!):
+   - For detailed nodes: Use EXACT parameter names, types, and required fields from database
+   - For basic nodes: Research common parameters for that node type
+   - ALWAYS include the "operation" parameter for operational nodes (send, get, create, update, delete, etc.)
+   - Set realistic values - use {{{{ $json.fieldname }}}} for data flow between nodes
+
+4. REQUIRED PARAMETERS:
+   - Gmail send: to, subject, message (+ operation: "send")
+   - HTTP Request: method, url (+ operation: "request")
+   - Database nodes: operation, query/table, connection credentials
+   - Webhook: httpMethod, path
+   - Code: code, language
+
+5. DATA FLOW:
+   - Connect nodes logically with "connections" object
+   - Use expressions {{{{ $json.fieldname }}}} to pass data between nodes
+   - First node output → Second node input → Third node input, etc.
+
+6. CREDENTIALS:
+   - Add credentials object when node requires authentication
+   - Common patterns: gmailOAuth2, httpBasicAuth, postgresDb, slackApi
+
+7. NODE STRUCTURE:
+   - Every node MUST have: parameters, name, type, typeVersion, position, id
+   - position: spread nodes [x, y] - increment x by 250 per node
+   - typeVersion: use 1 or 2 (check node details if available)
+
+8. COMPREHENSIVE EXAMPLES:
+
+Example 1 - Email Webhook (with full parameters):
 {{
-  "name": "Workflow Name",
+  "name": "Email on Webhook",
   "nodes": [
     {{
       "parameters": {{
+        "httpMethod": "POST",
+        "path": "webhook",
+        "responseMode": "onReceived"
+      }},
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "id": "node-1"
+    }},
+    {{
+      "parameters": {{
         "operation": "send",
-        "to": "user@example.com",
-        "subject": "Test",
-        "message": "{{{{ $json.data }}}}"
+        "to": "{{{{ $json.email }}}}",
+        "subject": "New Webhook Data",
+        "message": "Data: {{{{ $json.body }}}}",
+        "options": {{}}
       }},
       "name": "Gmail",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [250, 300],
-      "id": "node-1",
+      "position": [500, 300],
+      "id": "node-2",
       "credentials": {{
         "gmailOAuth2": {{
           "id": "1",
           "name": "Gmail account"
         }}
       }}
-    }},
-    {{
-      "parameters": {{
-        "url": "https://api.example.com/data",
-        "method": "GET"
-      }},
-      "name": "HTTP Request",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 1,
-      "position": [500, 300],
-      "id": "node-2"
     }}
   ],
   "connections": {{
-    "HTTP Request": {{
+    "Webhook": {{
       "main": [[{{"node": "Gmail", "type": "main", "index": 0}}]]
     }}
   }}
 }}
 
-IMPORTANT PARAMETER RULES:
-- Use the exact parameter names from the parameters list
-- Set values according to the parameter type (string, number, boolean, etc.)
-- Include all required parameters
-- For operation-based nodes, set the "operation" parameter first
-- Use expressions {{{{ $json.fieldname }}}} to pass data between nodes
+Example 2 - Database to Slack (with operations and parameters):
+{{
+  "name": "PostgreSQL to Slack",
+  "nodes": [
+    {{
+      "parameters": {{
+        "operation": "executeQuery",
+        "query": "SELECT * FROM users WHERE active = true",
+        "options": {{}}
+      }},
+      "name": "PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "id": "node-1",
+      "credentials": {{
+        "postgres": {{
+          "id": "1",
+          "name": "PostgreSQL DB"
+        }}
+      }}
+    }},
+    {{
+      "parameters": {{
+        "operation": "post",
+        "resource": "message",
+        "channel": "#general",
+        "text": "Found {{{{ $json.length }}}} active users",
+        "attachments": [],
+        "otherOptions": {{}}
+      }},
+      "name": "Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "id": "node-2",
+      "credentials": {{
+        "slackApi": {{
+          "id": "1",
+          "name": "Slack API"
+        }}
+      }}
+    }}
+  ],
+  "connections": {{
+    "PostgreSQL": {{
+      "main": [[{{"node": "Slack", "type": "main", "index": 0}}]]
+    }}
+  }}
+}}
 
-MANDATORY: Return ONLY the JSON workflow, absolutely NO explanations, questions, or additional text."""
+Example 3 - AI Content Generation:
+{{
+  "name": "AI Content to Slack",
+  "nodes": [
+    {{
+      "parameters": {{
+        "httpMethod": "POST",
+        "path": "generate"
+      }},
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "id": "node-1"
+    }},
+    {{
+      "parameters": {{
+        "operation": "create",
+        "resource": "completion",
+        "model": "gpt-4",
+        "prompt": "Write about: {{{{ $json.body.topic }}}}",
+        "maxTokens": 500,
+        "temperature": 0.7
+      }},
+      "name": "OpenAI",
+      "type": "n8n-nodes-base.openai",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "id": "node-2",
+      "credentials": {{
+        "openAiApi": {{
+          "id": "1",
+          "name": "OpenAI Account"
+        }}
+      }}
+    }},
+    {{
+      "parameters": {{
+        "operation": "post",
+        "resource": "message",
+        "channel": "#content",
+        "text": "{{{{ $json.choices[0].text }}}}"
+      }},
+      "name": "Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [750, 300],
+      "id": "node-3",
+      "credentials": {{
+        "slackApi": {{
+          "id": "1"
+        }}
+      }}
+    }}
+  ],
+  "connections": {{
+    "Webhook": {{
+      "main": [[{{"node": "OpenAI", "type": "main", "index": 0}}]]
+    }},
+    "OpenAI": {{
+      "main": [[{{"node": "Slack", "type": "main", "index": 0}}]]
+    }}
+  }}
+}}
+
+=== MANDATORY OUTPUT RULES ===
+✅ Return ONLY the JSON workflow - NO markdown blocks, NO explanations, NO questions
+✅ Include ALL required parameters for each node
+✅ Set the "operation" parameter for operational nodes (send, get, create, etc.)
+✅ Use specific values or {{{{ $json.field }}}} expressions for parameters
+✅ Connect all nodes via the "connections" object
+✅ Add credentials when nodes need authentication
+
+❌ DO NOT return anything except pure JSON
+❌ DO NOT ask clarifying questions - make smart assumptions
+❌ DO NOT use empty parameters {{}} - fill with realistic values"""
 
         # Check OpenAI version and use appropriate API
         try:
@@ -564,7 +733,7 @@ MANDATORY: Return ONLY the JSON workflow, absolutely NO explanations, questions,
                     {"role": "user", "content": f"Create an n8n workflow for: {prompt}"}
                 ],
                 temperature=0.7,
-                max_tokens=3000  # Increased for more complex workflows with parameters
+                max_tokens=4000  # Increased for complex workflows with full parameters
             )
             workflow_json = response.choices[0].message.content.strip()
         except (ImportError, AttributeError):
@@ -577,7 +746,7 @@ MANDATORY: Return ONLY the JSON workflow, absolutely NO explanations, questions,
                     {"role": "user", "content": f"Create an n8n workflow for: {prompt}"}
                 ],
                 temperature=0.7,
-                max_tokens=3000  # Increased for more complex workflows with parameters
+                max_tokens=4000  # Increased for complex workflows with full parameters
             )
             workflow_json = response.choices[0].message.content.strip()
 
@@ -1007,14 +1176,14 @@ def main():
 
         # Load node context for AI with comprehensive database info
         with st.spinner('🔄 Loading comprehensive node data from database (operations, parameters, credentials)...'):
-            nodes_context = load_node_context_for_ai(limit=100)
+            nodes_context = load_node_context_for_ai(limit=None)  # Load ALL nodes
 
         # Show what was loaded
         total_ops = sum(len(n.get('operations', [])) for n in nodes_context)
         total_params = sum(len(n.get('parameters', [])) for n in nodes_context)
         total_creds = sum(len(n.get('credentials', [])) for n in nodes_context)
 
-        st.success(f"✅ Loaded {len(nodes_context)} nodes with {total_ops} operations, {total_params} parameters, {total_creds} credentials")
+        st.success(f"✅ Loaded {len(nodes_context)} nodes with {total_ops} operations, {total_params} parameters, {total_creds} credentials from FULL database!")
 
         # Prompt input directly - compact
         st.markdown("### ✍️ Describe Your Workflow")
